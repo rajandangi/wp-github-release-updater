@@ -153,63 +153,48 @@ class Updater
                 return $result;
             }
 
-            // Find download asset
-            $download_url = $this->findDownloadAsset($release_data);
+            // Resolve package URL (GitHub asset or zipball)
+            $package_url = $this->findDownloadAsset($release_data);
 
-            if (empty($download_url)) {
+            if (empty($package_url)) {
                 $result['message'] = 'No suitable download asset found in the release.';
                 $this->logAction('Download', 'Failure', $result['message']);
                 return $result;
             }
 
-            // Create backup before update
-            $backup_path = $this->createBackup();
+            // Register this as an available update in the core update transient
+            $this->registerCoreUpdate($latest_version, $package_url);
 
-            if (is_wp_error($backup_path)) {
-                $result['message'] = 'Failed to create backup: ' . $backup_path->get_error_message();
+            // Include upgrader classes
+            require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+
+            // Ensure GitHub downloads include Authorization header when needed (private repos)
+            add_filter('http_request_args', [$this, 'httpAuthForGitHub'], 10, 2);
+
+            // Use the default WordPress plugin upgrader
+            $skin = new \Automatic_Upgrader_Skin();
+            $upgrader = new \Plugin_Upgrader($skin);
+
+            $upgrade_result = $upgrader->upgrade($this->config->getPluginBasename(), [
+                'clear_update_cache' => true,
+            ]);
+
+            // Remove temporary auth filter
+            remove_filter('http_request_args', [$this, 'httpAuthForGitHub'], 10);
+
+            if (is_wp_error($upgrade_result) || $upgrade_result === false) {
+                $error_message = is_wp_error($upgrade_result) ? $upgrade_result->get_error_message() : 'Upgrade failed.';
+                $result['message'] = 'Installation failed: ' . $error_message;
                 $this->logAction('Install', 'Failure', $result['message']);
                 return $result;
             }
-
-            // Download new version
-            $download_result = $this->downloadUpdate($download_url);
-
-            if (is_wp_error($download_result)) {
-                $result['message'] = 'Download failed: ' . $download_result->get_error_message();
-                $this->logAction('Download', 'Failure', $result['message']);
-                return $result;
-            }
-
-            // Install update
-            $install_result = $this->installUpdate($download_result['file_path']);
-
-            if (is_wp_error($install_result)) {
-                // Rollback on failure
-                $rollback_result = $this->rollbackUpdate($backup_path);
-                $result['rollback_performed'] = !is_wp_error($rollback_result);
-
-                $result['message'] = 'Installation failed: ' . $install_result->get_error_message();
-                if ($result['rollback_performed']) {
-                    $result['message'] .= ' Plugin rolled back to previous version.';
-                }
-
-                $this->logAction('Install', 'Failure', $result['message']);
-                return $result;
-            }
-
-            // Clean up
-            $this->cleanupTempFiles($download_result['file_path'], $backup_path);
 
             // Update version info
             $this->config->updateOption('current_version', $latest_version);
             $this->config->updateOption('update_available', false);
 
             $result['success'] = true;
-            $result['message'] = sprintf(
-                'Successfully updated to version %s',
-                $latest_version
-            );
-
+            $result['message'] = sprintf('Successfully updated to version %s', $latest_version);
             $this->logAction('Install', 'Success', $result['message']);
 
         } catch (\Exception $e) {
@@ -218,6 +203,86 @@ class Updater
         }
 
         return $result;
+    }
+
+    /**
+     * Register/update the core plugin update transient so WordPress knows
+     * about the new version and package URL. This allows the default updater
+     * to handle the installation just like an official update.
+     *
+     * @param string $new_version New version string
+     * @param string $package_url Download URL for the zip package
+     * @return void
+     */
+    private function registerCoreUpdate($new_version, $package_url)
+    {
+        $transient = get_site_transient('update_plugins');
+
+        if (!is_object($transient)) {
+            $transient = new \stdClass();
+        }
+
+        if (!isset($transient->response) || !is_array($transient->response)) {
+            $transient->response = [];
+        }
+
+        // Best-effort URL to the repo for details
+        $repo_url = $this->config->getOption('repository_url', 'https://github.com');
+
+        $plugin_basename = $this->config->getPluginBasename();
+
+        $transient->response[$plugin_basename] = (object) [
+            'slug' => $this->config->getPluginSlug(),
+            'plugin' => $plugin_basename,
+            'new_version' => $new_version,
+            'package' => $package_url,
+            'url' => $repo_url,
+        ];
+
+        $transient->last_checked = time();
+        set_site_transient('update_plugins', $transient);
+    }
+
+    /**
+     * Add Authorization header for GitHub package downloads if access token is set.
+     * Applied temporarily during upgrade.
+     *
+     * @param array  $args Request args
+     * @param string $url  Request URL
+     * @return array Modified args
+     */
+    public function httpAuthForGitHub($args, $url)
+    {
+        $token = $this->config->getOption('access_token', '');
+        if (empty($token)) {
+            return $args;
+        }
+
+        $host = parse_url($url, PHP_URL_HOST);
+        if (!$host) {
+            return $args;
+        }
+
+        $is_github = (
+            stripos($host, 'github.com') !== false ||
+            stripos($host, 'codeload.github.com') !== false ||
+            stripos($host, 'githubusercontent.com') !== false ||
+            stripos($host, 'api.github.com') !== false
+        );
+
+        if ($is_github) {
+            if (!isset($args['headers'])) {
+                $args['headers'] = [];
+            }
+            $args['headers']['Authorization'] = 'token ' . $token;
+            if (!isset($args['headers']['Accept'])) {
+                $args['headers']['Accept'] = 'application/octet-stream';
+            }
+            // Allow larger files
+            $args['timeout'] = max($args['timeout'] ?? 30, 300);
+        }
+
+        return $args;
     }
 
     /**

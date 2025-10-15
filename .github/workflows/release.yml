@@ -1,0 +1,116 @@
+name: Build and Release Plugin
+
+on:
+    push:
+        branches:
+            - release
+
+permissions:
+    contents: write
+
+jobs:
+    build-release:
+        name: Zip and Create Release (No Tag)
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Set up Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Set up PHP
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: "8.3"
+                  tools: composer:v2
+
+            - name: Composer install (if present)
+              if: hashFiles('**/composer.json') != ''
+              run: composer install --no-dev --prefer-dist --no-interaction --no-progress
+
+            - name: Determine version and names
+              id: vars
+              shell: bash
+              run: |
+                  set -euo pipefail
+
+                  PREFIX="wp_github_release_updater"
+                  FILE_FOR_VERSION="wp-github-release-updater.php"
+                  SLUG="wp-github-release-updater"
+
+                  echo "file_for_version=${FILE_FOR_VERSION}" >> "$GITHUB_OUTPUT"
+                  echo "slug=${SLUG}" >> "$GITHUB_OUTPUT"
+                  echo "prefix=${PREFIX}" >> "$GITHUB_OUTPUT"
+
+                  if [[ -f "$FILE_FOR_VERSION" ]]; then
+                    VERSION="$(grep -iE '^[[:space:]]*\*?[[:space:]]*Version:' "$FILE_FOR_VERSION" | head -n1 | sed -E 's/^.*Version:[[:space:]]*//I' | tr -d '\r' | sed 's/[[:space:]]*$//')"
+                  else
+                    VERSION=""
+                  fi
+
+                  if [[ -z "${VERSION:-}" ]]; then
+                    echo "Error: Could not determine plugin version from $FILE_FOR_VERSION" >&2
+                    exit 1
+                  fi
+
+                  echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+                  ZIP_NAME="${PREFIX}-v-${VERSION}.zip"
+                  echo "zip=${ZIP_NAME}" >> "$GITHUB_OUTPUT"
+
+            - name: Install Node deps and build
+              run: |
+                  if [ -f package-lock.json ]; then
+                    npm ci
+                  elif [ -f package.json ]; then
+                    npm install
+                  fi
+                  if [ -f package.json ]; then
+                    npm run build --if-present
+                  fi
+
+            - name: Prepare artifact (exclude dev and VCS files)
+              run: |
+                  set -euo pipefail
+                  rm -rf release-package
+                  mkdir -p "release-package/${{ steps.vars.outputs.slug }}"
+                  rsync -a --delete \
+                    --exclude '.git' \
+                    --exclude '.github' \
+                    --exclude 'node_modules' \
+                    --exclude '.DS_Store' \
+                    --exclude '*.log' \
+                    --exclude 'release-package' \
+                    --exclude '.gitignore' \
+                    --exclude '.gitattributes' \
+                    --exclude 'composer.json' \
+                    --exclude 'composer.lock' \
+                    --exclude 'package.json' \
+                    --exclude 'package-lock.json' \
+                    --exclude 'pnpm-lock.yaml' \
+                    --exclude 'vite.config.*' \
+                    --exclude 'webpack.*' \
+                    ./ "release-package/${{ steps.vars.outputs.slug }}/"
+
+            - name: Create zip
+              working-directory: release-package
+              run: |
+                  set -euo pipefail
+                  zip -r "${{ steps.vars.outputs.zip }}" "${{ steps.vars.outputs.slug }}"
+
+            - name: Create or update release (no tag)
+              uses: softprops/action-gh-release@v2
+              with:
+                  name: v${{ steps.vars.outputs.version }}
+                  body: "Automated release for version ${{ steps.vars.outputs.version }}"
+                  files: release-package/${{ steps.vars.outputs.zip }}
+                  fail_on_unmatched_files: true
+                  generate_release_notes: true
+                  draft: false
+                  prerelease: false
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

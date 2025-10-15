@@ -36,7 +36,7 @@ function wpGitHubReleaseUpdater()
         $updater = new \WPGitHubUpdater\GitHubUpdaterManager([
             // Required
             'plugin_file' => __FILE__,
-            'prefix' => 'wp_github_updater',  // Used for DB, AJAX, assets, nonces
+            'prefix' => 'wp_github_release_updater',  // Used for DB, AJAX, assets, nonces
             'menu_title' => 'GitHub Updater',
             'page_title' => 'GitHub Release Updater',
 
