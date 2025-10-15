@@ -77,13 +77,18 @@ class GitHubAPI
         // Support both owner/repo and full GitHub URLs
         $patterns = [
             '/^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)$/', // owner/repo format
-            '/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)(?:\.git)?(?:\/)?$/' // Full URL format
+            '/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+?)(?:\.git)?(?:\/)?$/' // Full URL format
         ];
 
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, trim($url), $matches)) {
                 $this->owner = $matches[1];
-                $this->repo = $matches[2];
+                // Remove .git suffix if present
+                $repo = $matches[2];
+                if (substr($repo, -4) === '.git') {
+                    $repo = substr($repo, 0, -4);
+                }
+                $this->repo = $repo;
                 return true;
             }
         }
@@ -101,7 +106,14 @@ class GitHubAPI
     public function setRepository($owner, $repo, $access_token = '')
     {
         $this->owner = sanitize_text_field($owner);
-        $this->repo = sanitize_text_field($repo);
+
+        // Remove .git suffix if present
+        $repo = sanitize_text_field($repo);
+        if (substr($repo, -4) === '.git') {
+            $repo = substr($repo, 0, -4);
+        }
+
+        $this->repo = $repo;
         $this->access_token = sanitize_text_field($access_token);
     }
 

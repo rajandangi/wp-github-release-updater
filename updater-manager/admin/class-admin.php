@@ -292,10 +292,10 @@ class Admin
         // Test with the provided settings
         $test_api = new GitHubAPI($this->config);
 
-        // Parse repository URL
+        // Parse repository URL and remove .git suffix if present
         if (preg_match('/^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)$/', $repository_url, $matches)) {
             $test_api->setRepository($matches[1], $matches[2], $access_token);
-        } elseif (preg_match('/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)/', $repository_url, $matches)) {
+        } elseif (preg_match('/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+?)(?:\.git)?(?:\/)?$/', $repository_url, $matches)) {
             $test_api->setRepository($matches[1], $matches[2], $access_token);
         } else {
             wp_send_json([
