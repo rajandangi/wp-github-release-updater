@@ -469,7 +469,6 @@ class Config
             'repository_url' => '',
             'access_token' => '',
             'last_checked' => 0,
-            'current_version' => $this->plugin_version,
             'latest_version' => '',
             'update_available' => false,
             'last_log' => []
