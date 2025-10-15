@@ -95,10 +95,10 @@ jobs:
                     ./ "release-package/${{ steps.vars.outputs.slug }}/"
 
             - name: Create zip
-              working-directory: release-package
+              working-directory: release-package/${{ steps.vars.outputs.slug }}
               run: |
                   set -euo pipefail
-                  zip -r "${{ steps.vars.outputs.zip }}" "${{ steps.vars.outputs.slug }}"
+                  zip -r "../${{ steps.vars.outputs.zip }}" .
 
             - name: Create and push tag
               run: |
