@@ -102,9 +102,17 @@ jobs:
                   set -euo pipefail
                   zip -r "${{ steps.vars.outputs.zip }}" "${{ steps.vars.outputs.slug }}"
 
-            - name: Create or update release (no tag)
+            - name: Create and push tag
+              run: |
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+                  git tag -a "v${{ steps.vars.outputs.version }}" -m "Release v${{ steps.vars.outputs.version }}"
+                  git push origin "v${{ steps.vars.outputs.version }}"
+
+            - name: Create or update release
               uses: softprops/action-gh-release@v2
               with:
+                  tag_name: v${{ steps.vars.outputs.version }}
                   name: v${{ steps.vars.outputs.version }}
                   body: "Automated release for version ${{ steps.vars.outputs.version }}"
                   files: release-package/${{ steps.vars.outputs.zip }}
