@@ -57,7 +57,7 @@ jobs:
 
                   echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-                  ZIP_NAME="${SLUG}-v-${VERSION}.zip"
+                  ZIP_NAME="${SLUG}.zip"
                   echo "zip=${ZIP_NAME}" >> "$GITHUB_OUTPUT"
 
             - name: Install Node deps and build
