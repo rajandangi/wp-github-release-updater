@@ -5,7 +5,7 @@
  * @package WPGitHubReleaseUpdater
  */
 
-namespace WPGitHubUpdater;
+namespace WPGitHubReleaseUpdater;
 
 // Prevent direct access
 if (!defined('ABSPATH')) {

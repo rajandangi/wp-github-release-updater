@@ -5,7 +5,7 @@
  * @package WPGitHubReleaseUpdater
  */
 
-namespace WPGitHubUpdater;
+namespace WPGitHubReleaseUpdater;
 
 // Prevent direct access
 if (!defined('ABSPATH')) {
@@ -122,74 +122,6 @@ class GitHubAPI
     }
 
     /**
-     * Get specific release by tag
-     *
-     * @param string $tag Release tag
-     * @return array|WP_Error Release data or error
-     */
-    public function getReleaseByTag($tag)
-    {
-        if (empty($this->owner) || empty($this->repo)) {
-            return new \WP_Error('invalid_repo', 'Repository owner and name must be configured');
-        }
-
-        $tag = sanitize_text_field($tag);
-        $url = self::API_BASE_URL . "/repos/{$this->owner}/{$this->repo}/releases/tags/{$tag}";
-
-        return $this->makeRequest($url);
-    }
-
-    /**
-     * Download release asset
-     *
-     * @param string $download_url Asset download URL
-     * @param string $destination Local file path to save the downloaded file
-     * @return bool|WP_Error Success status or error
-     */
-    public function downloadAsset($download_url, $destination)
-    {
-        if (empty($download_url)) {
-            return new \WP_Error('invalid_url', 'Download URL is required');
-        }
-
-        $args = [
-            'timeout' => 300, // 5 minutes for large files
-            'stream' => true,
-            'filename' => $destination
-        ];
-
-        // Add authorization header if token is available
-        if (!empty($this->access_token)) {
-            $args['headers'] = [
-                'Authorization' => 'token ' . $this->access_token,
-                'Accept' => 'application/octet-stream'
-            ];
-        }
-
-        $response = wp_remote_get($download_url, $args);
-
-        if (is_wp_error($response)) {
-            return $response;
-        }
-
-        $response_code = wp_remote_retrieve_response_code($response);
-
-        if ($response_code !== 200) {
-            return new \WP_Error(
-                'download_failed',
-                sprintf('Download failed with status code: %d', $response_code)
-            );
-        }
-
-        // Verify file was downloaded
-        if (!file_exists($destination) || filesize($destination) === 0) {
-            return new \WP_Error('download_failed', 'Downloaded file is empty or missing');
-        }
-
-        return true;
-    }
-
-    /**
      * Test repository access
      *
      * @return bool|WP_Error Success status or error
@@ -274,46 +206,5 @@ class GitHubAPI
                     sprintf('GitHub API request failed with status code: %d', $response_code)
                 );
         }
-    }
-
-    /**
-     * Get repository owner
-     *
-     * @return string
-     */
-    public function getOwner()
-    {
-        return $this->owner;
-    }
-
-    /**
-     * Get repository name
-     *
-     * @return string
-     */
-    public function getRepo()
-    {
-        return $this->repo;
-    }
-
-    /**
-     * Check if repository is configured
-     *
-     * @return bool
-     */
-    public function isConfigured()
-    {
-        return !empty($this->owner) && !empty($this->repo);
-    }
-
-    /**
-     * Get rate limit information
-     *
-     * @return array|WP_Error Rate limit data or error
-     */
-    public function getRateLimit()
-    {
-        $url = self::API_BASE_URL . '/rate_limit';
-        return $this->makeRequest($url);
     }
 }

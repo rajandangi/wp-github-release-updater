@@ -154,10 +154,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         }, 2000);
                     } else {
                         showMessage(result.message, 'error');
-
-                        if (result.rollback_performed) {
-                            showMessage('Plugin has been rolled back to the previous version.', 'warning');
-                        }
                     }
                 });
         });
