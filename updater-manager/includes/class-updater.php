@@ -302,10 +302,8 @@ class Updater
     /**
      * Find suitable download asset from release
      *
-     * Priority order:
-     * 1. ZIP file matching pattern: {prefix}-v-{version}.zip or {prefix}-{version}.zip
-     * 2. Any ZIP file
-     * 3. GitHub's zipball_url
+     * Looks for ZIP file matching pattern: {prefix}.zip
+     * Falls back to GitHub's zipball_url if not found
      *
      * @param array $release_data GitHub release data
      * @return string Download URL or empty string
@@ -317,22 +315,14 @@ class Updater
             return $this->getFallbackZipball($release_data);
         }
 
-        // Get prefix from config (convert underscores to hyphens for filename matching)
+        // Get prefix from config
         $prefix = $this->config->getAssetPrefix();
         $prefix = rtrim($prefix, '-'); // Remove trailing hyphen if exists
 
-        // Extract version from tag (e.g., v1.2.3 -> 1.2.3)
-        $version = $release_data['tag_name'] ?? '';
-        $version = ltrim($version, 'v'); // Remove leading 'v' if exists
+        // Expected filename: prefix.zip
+        $expected_filename = $prefix . '.zip';
 
-        // Build possible filename patterns (in priority order)
-        $patterns = [
-            $prefix . '-v-' . $version . '.zip',     // prefix-v-1.2.3.zip
-            $prefix . '-' . $version . '.zip',       // prefix-1.2.3.zip
-            $prefix . '-v' . $version . '.zip',      // prefix-v1.2.3.zip
-        ];
-
-        // First pass: Look for files matching our prefix patterns
+        // Look for the exact file matching our pattern
         foreach ($release_data['assets'] as $asset) {
             if (!$this->isZipFile($asset)) {
                 continue;
@@ -340,39 +330,7 @@ class Updater
 
             $asset_name = strtolower($asset['name']);
 
-            foreach ($patterns as $pattern) {
-                if ($asset_name === strtolower($pattern)) {
-                    return apply_filters(
-                        $this->config->getPluginSlug() . '_download_url',
-                        $asset['browser_download_url'],
-                        $asset,
-                        $release_data
-                    );
-                }
-            }
-        }
-
-        // Second pass: Look for any file containing the prefix
-        foreach ($release_data['assets'] as $asset) {
-            if (!$this->isZipFile($asset)) {
-                continue;
-            }
-
-            $asset_name = strtolower($asset['name']);
-
-            if (strpos($asset_name, strtolower($prefix)) === 0) {
-                return apply_filters(
-                    $this->config->getPluginSlug() . '_download_url',
-                    $asset['browser_download_url'],
-                    $asset,
-                    $release_data
-                );
-            }
-        }
-
-        // Third pass: Accept any ZIP file
-        foreach ($release_data['assets'] as $asset) {
-            if ($this->isZipFile($asset)) {
+            if ($asset_name === strtolower($expected_filename)) {
                 return apply_filters(
                     $this->config->getPluginSlug() . '_download_url',
                     $asset['browser_download_url'],
