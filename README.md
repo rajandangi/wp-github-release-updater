@@ -14,7 +14,7 @@ A lightweight, **highly portable** WordPress plugin that enables manual updates 
 
 1. **Self-contained** - Everything in one `updater-manager` folder
 2. **Zero file editing** - All config via constructor parameters
-3. **Zero namespace conflicts** - Uses isolated `WPGitHubUpdater` namespace
+3. **Zero namespace conflicts** - Uses isolated `WPGitHubReleaseUpdater` namespace
 4. **Ultra-simple** - Just ~15 lines of code to integrate
 5. **Copy/paste ready** - No complex setup required
 6. **Dynamic prefix** - Works with any WordPress installation
@@ -28,7 +28,6 @@ A lightweight, **highly portable** WordPress plugin that enables manual updates 
 - **Manual Updates Only** - No automatic checks or background processes
 - **Public & Private Repositories** - Support for both with Personal Access Tokens
 - **Simple Interface** - Clean admin panel under Tools menu
-- **Safe Updates** - Automatic backup and rollback functionality
 - **Version Validation** - Semantic version comparison
 - **Minimal Logging** - Single-entry log of recent actions
 - **Security First** - Proper permission checks and input sanitization
@@ -90,7 +89,7 @@ A lightweight, **highly portable** WordPress plugin that enables manual updates 
 
         if ($updater === null) {
             // ULTRA-SIMPLE: Plugin info auto-extracted, just provide unique prefix!
-            $updater = new \WPGitHubUpdater\GitHubUpdaterManager([
+            $updater = new \WPGitHubReleaseUpdater\GitHubUpdaterManager([
                 // Required
                 'plugin_file' => __FILE__,
                 'prefix' => 'wp_github_updater',  // Used for DB, AJAX, assets, nonces
@@ -159,7 +158,7 @@ Accepts either format:
 ### 3. Actions
 - **Test Repository Access** - Quick connectivity check
 - **Check for Updates** - Fetch latest GitHub release and compare versions
-- **Update Now** - Download and install with backup/rollback
+- **Update Now** - Download and install using WordPress's native updater
 
 ---
 

@@ -38,13 +38,11 @@ jobs:
               run: |
                   set -euo pipefail
 
-                  PREFIX="wp_github_release_updater"
                   FILE_FOR_VERSION="wp-github-release-updater.php"
                   SLUG="wp-github-release-updater"
 
                   echo "file_for_version=${FILE_FOR_VERSION}" >> "$GITHUB_OUTPUT"
                   echo "slug=${SLUG}" >> "$GITHUB_OUTPUT"
-                  echo "prefix=${PREFIX}" >> "$GITHUB_OUTPUT"
 
                   if [[ -f "$FILE_FOR_VERSION" ]]; then
                     VERSION="$(grep -iE '^[[:space:]]*\*?[[:space:]]*Version:' "$FILE_FOR_VERSION" | head -n1 | sed -E 's/^.*Version:[[:space:]]*//I' | tr -d '\r' | sed 's/[[:space:]]*$//')"
@@ -59,7 +57,7 @@ jobs:
 
                   echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-                  ZIP_NAME="${PREFIX}-v-${VERSION}.zip"
+                  ZIP_NAME="${SLUG}-${VERSION}.zip"
                   echo "zip=${ZIP_NAME}" >> "$GITHUB_OUTPUT"
 
             - name: Install Node deps and build

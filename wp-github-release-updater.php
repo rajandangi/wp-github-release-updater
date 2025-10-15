@@ -33,7 +33,7 @@ function wpGitHubReleaseUpdater()
 
     if ($updater === null) {
         // ULTRA-SIMPLE: Plugin info auto-extracted, just provide unique prefix!
-        $updater = new \WPGitHubUpdater\GitHubUpdaterManager([
+        $updater = new \WPGitHubReleaseUpdater\GitHubUpdaterManager([
             // Required
             'plugin_file' => __FILE__,
             'prefix' => 'wp_github_release_updater',  // Used for DB, AJAX, assets, nonces

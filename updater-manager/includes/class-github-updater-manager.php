@@ -15,9 +15,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Load Config class
-require_once plugin_dir_path(__FILE__) . 'includes/class-config.php';
-
 /**
  * GitHub Updater Manager Class
  *
@@ -140,7 +137,7 @@ class GitHubUpdaterManager
     private function loadDependencies()
     {
         // Get the updater-manager directory (where this class file is located)
-        $updater_dir = plugin_dir_path(__FILE__);
+        $updater_dir = plugin_dir_path(dirname(__FILE__));
 
         require_once $updater_dir . 'includes/class-github-api.php';
         require_once $updater_dir . 'includes/class-updater.php';
@@ -206,85 +203,5 @@ class GitHubUpdaterManager
 
         // Allow others to hook after deactivation
         do_action('github_updater_deactivated', $this);
-    }
-
-    /**
-     * Uninstall callback
-     *
-     * Call this from uninstall hook to completely remove all data
-     */
-    public function uninstall()
-    {
-        // Delete all plugin options
-        $option_keys = array_keys($this->config->getDefaultOptions());
-
-        foreach ($option_keys as $key) {
-            $this->config->deleteOption($key);
-        }
-
-        // Clean up temporary files
-        $upload_dir = wp_upload_dir();
-        $temp_files = glob($upload_dir['basedir'] . '/wp-github-updater-temp-*');
-
-        if ($temp_files) {
-            foreach ($temp_files as $file) {
-                if (is_file($file)) {
-                    @unlink($file);
-                }
-            }
-        }
-
-        // Allow others to hook after uninstall
-        do_action('github_updater_uninstalled', $this);
-    }
-
-    /**
-     * Get Config instance
-     *
-     * @return Config
-     */
-    public function getConfig()
-    {
-        return $this->config;
-    }
-
-    /**
-     * Get GitHub API instance
-     *
-     * @return GitHubAPI|null
-     */
-    public function getGitHubAPI()
-    {
-        return $this->github_api;
-    }
-
-    /**
-     * Get Updater instance
-     *
-     * @return Updater|null
-     */
-    public function getUpdater()
-    {
-        return $this->updater;
-    }
-
-    /**
-     * Get Admin instance
-     *
-     * @return Admin|null
-     */
-    public function getAdmin()
-    {
-        return $this->admin;
-    }
-
-    /**
-     * Check if the manager has been initialized
-     *
-     * @return bool
-     */
-    public function isInitialized()
-    {
-        return $this->initialized;
     }
 }

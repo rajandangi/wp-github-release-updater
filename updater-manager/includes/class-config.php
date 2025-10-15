@@ -8,7 +8,7 @@
  * @package WPGitHubReleaseUpdater
  */
 
-namespace WPGitHubUpdater;
+namespace WPGitHubReleaseUpdater;
 
 // Prevent direct access
 if (!defined('ABSPATH')) {
@@ -245,19 +245,6 @@ class Config
         }
 
         return $plugin_data;
-    }
-
-    /**
-     * Initialize with plugin file
-     *
-     * @param string $plugin_file Main plugin file path
-     */
-    public function init($plugin_file)
-    {
-        $this->plugin_file = $plugin_file;
-        $this->plugin_dir = plugin_dir_path($plugin_file);
-        $this->plugin_url = plugin_dir_url($plugin_file);
-        $this->plugin_basename = plugin_basename($plugin_file);
     }
 
     /**
