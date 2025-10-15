@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: WP GitHub Release Updater
- * Plugin URI: https://github.com/example/wp-github-release-updater
+ * Plugin URI: https://github.com/rajandangi/wp-github-release-updater.git
  * Description: A lightweight WordPress plugin that enables automatic updates from GitHub releases instead of WordPress.org. Manual checks and updates only.
  * Version: 1.0.1
  * Requires at least: 6.0
