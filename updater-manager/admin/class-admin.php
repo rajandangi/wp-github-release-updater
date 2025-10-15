@@ -360,7 +360,7 @@ class Admin
     public function getPluginStatus()
     {
         return [
-            'current_version' => $this->config->getOption('current_version', $this->config->getPluginVersion()),
+            'current_version' => $this->config->getPluginVersion(),
             'latest_version' => $this->config->getOption('latest_version', ''),
             'update_available' => $this->config->getOption('update_available', false),
             'last_checked' => $this->config->getOption('last_checked', 0),
