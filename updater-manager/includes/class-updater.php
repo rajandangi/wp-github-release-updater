@@ -168,11 +168,15 @@ class Updater
             // Register this as an available update in the core update transient
             $this->registerCoreUpdate($latest_version, $package_url);
 
-            // Build the WordPress native update URL
+            // Build the WordPress native update URL with fresh nonce
             $plugin_basename = $this->config->getPluginBasename();
-            $update_url = wp_nonce_url(
-                self_admin_url('update.php?action=upgrade-plugin&plugin=' . urlencode($plugin_basename)),
-                'upgrade-plugin_' . $plugin_basename
+            $update_url = add_query_arg(
+                [
+                    'action' => 'upgrade-plugin',
+                    'plugin' => $plugin_basename,
+                    '_wpnonce' => wp_create_nonce('upgrade-plugin_' . $plugin_basename)
+                ],
+                self_admin_url('update.php')
             );
 
             $result['success'] = true;

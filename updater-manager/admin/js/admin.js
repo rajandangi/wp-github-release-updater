@@ -125,11 +125,8 @@ document.addEventListener('DOMContentLoaded', function () {
             makeAjaxRequest(wpGitHubUpdater.actions.update)
                 .then(result => {
                     if (result.success && result.redirect_url) {
-                        // Redirect to WordPress update screen
-                        showMessage(result.message, 'info');
-                        setTimeout(() => {
-                            window.location.href = result.redirect_url;
-                        }, 500);
+                        // Redirect immediately to WordPress update screen
+                        window.location.href = result.redirect_url;
                     } else if (result.success) {
                         setButtonLoading(updateButton, false);
                         showMessage(result.message, 'success');
