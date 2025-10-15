@@ -55,6 +55,9 @@ class Updater
         $this->current_version = $config->getPluginVersion();
         $this->plugin_file = $config->getPluginFile();
         $this->plugin_dir = $config->getPluginDir();
+
+        // Register auth filter for GitHub downloads (for private repos)
+        add_filter('http_request_args', [$this, 'httpAuthForGitHub'], 10, 2);
     }
 
     /**
@@ -130,7 +133,8 @@ class Updater
     {
         $result = [
             'success' => false,
-            'message' => ''
+            'message' => '',
+            'redirect_url' => ''
         ];
 
         try {
@@ -164,41 +168,21 @@ class Updater
             // Register this as an available update in the core update transient
             $this->registerCoreUpdate($latest_version, $package_url);
 
-            // Include upgrader classes
-            require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
-
-            // Ensure GitHub downloads include Authorization header when needed (private repos)
-            add_filter('http_request_args', [$this, 'httpAuthForGitHub'], 10, 2);
-
-            // Use the default WordPress plugin upgrader
-            $skin = new \Automatic_Upgrader_Skin();
-            $upgrader = new \Plugin_Upgrader($skin);
-
-            $upgrade_result = $upgrader->upgrade($this->config->getPluginBasename(), [
-                'clear_update_cache' => true,
-            ]);
-
-            // Remove temporary auth filter
-            remove_filter('http_request_args', [$this, 'httpAuthForGitHub'], 10);
-
-            if (is_wp_error($upgrade_result) || $upgrade_result === false) {
-                $error_message = is_wp_error($upgrade_result) ? $upgrade_result->get_error_message() : 'Upgrade failed.';
-                $result['message'] = 'Installation failed: ' . $error_message;
-                $this->logAction('Install', 'Failure', $result['message']);
-                return $result;
-            }
-
-            // Update version info
-            $this->config->updateOption('current_version', $latest_version);
-            $this->config->updateOption('update_available', false);
+            // Build the WordPress native update URL
+            $plugin_basename = $this->config->getPluginBasename();
+            $update_url = wp_nonce_url(
+                self_admin_url('update.php?action=upgrade-plugin&plugin=' . urlencode($plugin_basename)),
+                'upgrade-plugin_' . $plugin_basename
+            );
 
             $result['success'] = true;
-            $result['message'] = sprintf('Successfully updated to version %s', $latest_version);
-            $this->logAction('Install', 'Success', $result['message']);
+            $result['redirect_url'] = $update_url;
+            $result['message'] = 'Redirecting to WordPress update screen...';
+            $this->logAction('Update', 'Initiated', 'Redirecting to WordPress update screen for version ' . $latest_version);
 
         } catch (\Exception $e) {
             $result['message'] = 'Update failed: ' . $e->getMessage();
-            $this->logAction('Install', 'Failure', $result['message']);
+            $this->logAction('Update', 'Failure', $result['message']);
         }
 
         return $result;
