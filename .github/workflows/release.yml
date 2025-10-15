@@ -10,7 +10,7 @@ permissions:
 
 jobs:
     build-release:
-        name: Zip and Create Release (No Tag)
+        name: Zip and Create Release
         runs-on: ubuntu-latest
 
         steps:
