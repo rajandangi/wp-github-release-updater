@@ -199,39 +199,73 @@ class Config {
 	private $style_handle;
 
 	/**
-	 * Single instance
+	 * Instance registry - keyed by plugin file path
+	 * This prevents config collision when multiple plugins use this updater
 	 *
-	 * @var Config|null
+	 * @var array<string, Config>
 	 */
-	private static $instance = null;
+	private static $instances = array();
 
 	/**
-	 * Get instance
+	 * Get instance for a specific plugin
 	 *
 	 * @param string $plugin_file Main plugin file path
 	 * @param array  $config Configuration options
+	 * @return Config
 	 */
 	public static function getInstance( $plugin_file = null, $config = array() ) {
-		if ( null === self::$instance ) {
-			self::$instance = new self( $plugin_file, $config );
+		if ( ! $plugin_file ) {
+			wp_die( 'GitHub Updater: Plugin file is required to get Config instance' );
 		}
-		return self::$instance;
+
+		// Use realpath to normalize the path for consistent keying
+		$key = realpath( $plugin_file );
+		if ( false === $key ) {
+			$key = $plugin_file; // Fallback if realpath fails
+		}
+
+		if ( ! isset( self::$instances[ $key ] ) ) {
+			self::$instances[ $key ] = new self( $plugin_file, $config );
+		}
+		return self::$instances[ $key ];
+	}
+
+	/**
+	 * Clear instance for a specific plugin (useful for testing)
+	 *
+	 * @param string $plugin_file Main plugin file path
+	 * @return void
+	 */
+	public static function clearInstance( $plugin_file ) {
+		$key = realpath( $plugin_file );
+		if ( false === $key ) {
+			$key = $plugin_file;
+		}
+		unset( self::$instances[ $key ] );
+	}
+
+	/**
+	 * Clear all instances (useful for testing)
+	 *
+	 * @return void
+	 */
+	public static function clearAllInstances() {
+		self::$instances = array();
 	}
 
 	/**
 	 * Constructor
 	 *
 	 * Automatically extracts plugin info from the plugin file headers.
-	 * Requires customization for unique prefix and menu settings!
+	 * Plugin slug extracted from filename - used for all prefixes automatically!
 	 *
 	 * @param string $plugin_file Main plugin file path (__FILE__ from consuming plugin)
-	 * @param array  $config Utility configuration options (ALL REQUIRED)
+	 * @param array  $config Configuration options
 	 *    Required:
-	 *      - prefix: string - Unique prefix for everything (e.g., 'myplugin_gh')
 	 *      - menu_title: string - Admin menu title (e.g., 'My Plugin Updates')
 	 *      - page_title: string - Admin page title (e.g., 'My Plugin GitHub Updater')
 	 *
-	 *    Optional admin customization:
+	 *    Optional:
 	 *      - menu_parent: string (default: 'tools.php')
 	 *      - capability: string (default: 'manage_options')
 	 */
@@ -264,14 +298,14 @@ class Config {
 		global $wpdb;
 		$db_prefix = $wpdb->prefix;
 
-		// Generate all prefixes from the single base prefix
-		$base_prefix   = $config['prefix'];
-		$option_suffix = $base_prefix . '_';
-		$ajax_prefix   = $base_prefix . '_';
-		$asset_prefix  = str_replace( '_', '-', $base_prefix ) . '-';
-		$nonce_name    = $base_prefix . '_nonce';
+		// Use plugin slug for all prefixes (guaranteed unique by WordPress)
+		// Plugin slug extracted from filename provides automatic uniqueness
+		$option_suffix = $this->plugin_slug . '_';
+		$ajax_prefix   = $this->plugin_slug . '_';
+		$asset_prefix  = str_replace( '_', '-', $this->plugin_slug ) . '-';
+		$nonce_name    = $this->plugin_slug . '_nonce';
 
-		// Set prefixes
+		// Set prefixes (wpdb prefix + plugin slug is sufficient for uniqueness)
 		$this->option_prefix = $db_prefix . $option_suffix;
 		$this->ajax_prefix   = $ajax_prefix;
 		$this->asset_prefix  = $asset_prefix;
@@ -292,9 +326,9 @@ class Config {
 		$this->page_title  = $config['page_title'];
 		$this->capability  = $config['capability'] ?? 'manage_options';
 
-		// Generate settings page slug and group from prefix (not plugin slug)
-		$this->settings_page_slug = str_replace( '_', '-', $base_prefix ) . '-settings';
-		$this->settings_group     = $base_prefix . '_settings';
+		// Generate settings page slug and group from plugin slug
+		$this->settings_page_slug = str_replace( '_', '-', $this->plugin_slug ) . '-updater-settings';
+		$this->settings_group     = $this->plugin_slug . '_updater_settings';
 	}
 
 	/**
@@ -303,10 +337,7 @@ class Config {
 	 * @param array $config Configuration array
 	 */
 	private function validateConfig( $config ) {
-		// Check for required prefix
-		if ( empty( $config['prefix'] ) ) {
-			wp_die( 'GitHub Updater Configuration Error: "prefix" is required (e.g., "myplugin_gh")' );
-		}
+		// Prefix is now optional - will use plugin slug if not provided
 
 		// Check for required menu settings
 		if ( empty( $config['menu_title'] ) ) {

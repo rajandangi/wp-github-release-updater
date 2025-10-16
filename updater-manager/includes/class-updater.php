@@ -65,8 +65,11 @@ class Updater {
 		$this->plugin_file     = $config->getPluginFile();
 		$this->plugin_dir      = $config->getPluginDir();
 
-		// Register auth filter for GitHub downloads (for private repos)
-		add_filter( 'http_request_args', array( $this, 'httpAuthForGitHub' ), 10, 2 );
+		// NOTE: Auth filter is NOT registered globally to prevent token leaks
+		// It will be added only during actual download operations
+
+		// Clear update cache after successful plugin upgrade
+		add_action( 'upgrader_process_complete', array( $this, 'clearCacheAfterUpdate' ), 10, 2 );
 	}
 
 	/**
@@ -94,6 +97,19 @@ class Updater {
 				return $result;
 			}
 
+			// Check if this is a pre-release
+			$include_prereleases = $this->config->getOption( 'include_prereleases', false );
+			$is_prerelease       = $this->isPreRelease( $release_data['tag_name'] );
+
+			if ( $is_prerelease && ! $include_prereleases ) {
+				$result['message'] = sprintf(
+					'Latest release (%s) is a pre-release. Enable "Include Pre-releases" to use it.',
+					$release_data['tag_name']
+				);
+				$this->logAction( 'Check', 'Success', $result['message'] );
+				return $result;
+			}
+
 			$latest_version = $this->extractVersionFromTag( $release_data['tag_name'] );
 
 			if ( empty( $latest_version ) ) {
@@ -117,10 +133,20 @@ class Updater {
 				$result['message'] = 'You have the latest version installed.';
 			}
 
-			// Update WordPress options
+			// Update WordPress options with release snapshot
 			$this->config->updateOption( 'latest_version', $latest_version );
 			$this->config->updateOption( 'update_available', $result['update_available'] );
 			$this->config->updateOption( 'last_checked', time() );
+			// Store release data snapshot to prevent race conditions
+			$release_snapshot = array(
+				'version'      => $latest_version,
+				'tag_name'     => $release_data['tag_name'],
+				'published_at' => $release_data['published_at'] ?? '',
+				'assets'       => $release_data['assets'] ?? array(),
+				'zipball_url'  => $release_data['zipball_url'] ?? '',
+				'html_url'     => $release_data['html_url'] ?? '',
+			);
+			$this->config->updateOption( 'release_snapshot', $release_snapshot );
 
 			$this->logAction( 'Check', 'Success', $result['message'] );
 
@@ -145,32 +171,76 @@ class Updater {
 		);
 
 		try {
+			// Check for concurrent update attempts (locking mechanism)
+			$lock_key = 'update_in_progress_' . md5( $this->config->getPluginBasename() );
+			if ( get_transient( $lock_key ) ) {
+				$result['message'] = 'Update already in progress. Please wait for the current update to complete.';
+				return $result;
+			}
+
+			// Set lock (5 minute expiration)
+			set_transient( $lock_key, time(), 300 );
+
 			// Check if update is available
 			$latest_version   = $this->config->getOption( 'latest_version', '' );
 			$update_available = $this->config->getOption( 'update_available', false );
+			$release_snapshot = $this->config->getOption( 'release_snapshot', array() );
 
 			if ( ! $update_available || empty( $latest_version ) ) {
+				delete_transient( $lock_key );
 				$result['message'] = 'No update available. Please check for updates first.';
 				return $result;
 			}
 
-			// Get release data
-			$release_data = $this->github_api->getLatestRelease();
+			// Verify we have a valid release snapshot
+			if ( empty( $release_snapshot ) || empty( $release_snapshot['version'] ) ) {
+				delete_transient( $lock_key );
+				$result['message'] = 'Invalid release data. Please check for updates again.';
+				return $result;
+			}
 
-			if ( is_wp_error( $release_data ) ) {
-				$result['message'] = 'Failed to fetch release data: ' . $release_data->get_error_message();
+			// Get fresh release data to check if version changed
+			$current_release_data = $this->github_api->getLatestRelease();
+
+			if ( is_wp_error( $current_release_data ) ) {
+				delete_transient( $lock_key );
+				$result['message'] = 'Failed to verify release data: ' . $current_release_data->get_error_message();
 				$this->logAction( 'Download', 'Failure', $result['message'] );
 				return $result;
 			}
+
+			// Extract current version and compare with snapshot
+			$current_latest_version = $this->extractVersionFromTag( $current_release_data['tag_name'] );
+
+			// Check for race condition: version changed since last check
+			if ( $current_latest_version !== $release_snapshot['version'] ) {
+				delete_transient( $lock_key );
+				$result['message'] = sprintf(
+					'Warning: Release version changed from %s to %s since last check. Please re-check for updates before proceeding.',
+					$release_snapshot['version'],
+					$current_latest_version
+				);
+				$this->logAction( 'Download', 'Failure', $result['message'] );
+				// Clear outdated snapshot
+				$this->clearUpdateCache();
+				return $result;
+			}
+
+			// Use snapshot data instead of fresh data to ensure consistency
+			$release_data = $release_snapshot;
 
 			// Resolve package URL (GitHub asset or zipball)
 			$package_url = $this->findDownloadAsset( $release_data );
 
 			if ( empty( $package_url ) ) {
+				delete_transient( $lock_key );
 				$result['message'] = 'No suitable download asset found in the release.';
 				$this->logAction( 'Download', 'Failure', $result['message'] );
 				return $result;
 			}
+
+			// Store rollback information before updating
+			$this->storeRollbackInfo();
 
 			// Register this as an available update in the core update transient
 			$this->registerCoreUpdate( $latest_version, $package_url );
@@ -186,12 +256,19 @@ class Updater {
 				self_admin_url( 'update.php' )
 			);
 
+			// Lock will be released after update completes via clearCacheAfterUpdate hook
+			// or automatically expires after 5 minutes
+
 			$result['success']      = true;
 			$result['redirect_url'] = $update_url;
 			$result['message']      = 'Redirecting to WordPress update screen...';
 			$this->logAction( 'Update', 'Initiated', 'Redirecting to WordPress update screen for version ' . $latest_version );
 
 		} catch ( \Exception $e ) {
+			// Release lock on error
+			$lock_key = 'update_in_progress_' . md5( $this->config->getPluginBasename() );
+			delete_transient( $lock_key );
+
 			$result['message'] = 'Update failed: ' . $e->getMessage();
 			$this->logAction( 'Update', 'Failure', $result['message'] );
 		}
@@ -209,6 +286,9 @@ class Updater {
 	 * @return void
 	 */
 	private function registerCoreUpdate( $new_version, $package_url ) {
+		// Enable GitHub auth filter ONLY during update process
+		add_filter( 'http_request_args', array( $this, 'httpAuthForGitHub' ), 10, 2 );
+
 		$transient = get_site_transient( 'update_plugins' );
 
 		if ( ! is_object( $transient ) ) {
@@ -238,7 +318,7 @@ class Updater {
 
 	/**
 	 * Add Authorization header for GitHub package downloads if access token is set.
-	 * Applied temporarily during upgrade.
+	 * Applied temporarily during upgrade only to prevent token leaks.
 	 *
 	 * @param array  $args Request args
 	 * @param string $url  Request URL
@@ -250,49 +330,103 @@ class Updater {
 			return $args;
 		}
 
+		// Validate token format (basic check)
+		if ( ! $this->isValidGitHubToken( $token ) ) {
+			return $args;
+		}
+
 		$host = wp_parse_url( $url, PHP_URL_HOST );
 		if ( ! $host ) {
 			return $args;
 		}
 
-		$is_github = (
-			stripos( $host, 'github.com' ) !== false ||
-			stripos( $host, 'codeload.github.com' ) !== false ||
-			stripos( $host, 'githubusercontent.com' ) !== false ||
-			stripos( $host, 'api.github.com' ) !== false
+		// Strict host validation - ONLY exact GitHub domains
+		// This prevents token leaks to domains like "my-github.com"
+		$valid_github_hosts = array(
+			'github.com',
+			'api.github.com',
+			'codeload.github.com',
+			'githubusercontent.com',
+			'raw.githubusercontent.com',
 		);
 
-		if ( $is_github ) {
-			if ( ! isset( $args['headers'] ) ) {
-				$args['headers'] = array();
-			}
-			$args['headers']['Authorization'] = 'token ' . $token;
-			if ( ! isset( $args['headers']['Accept'] ) ) {
-				$args['headers']['Accept'] = 'application/octet-stream';
-			}
-			// Allow larger files
-			$args['timeout'] = max( $args['timeout'] ?? 30, 300 );
+		if ( ! in_array( strtolower( $host ), $valid_github_hosts, true ) ) {
+			return $args;
 		}
+
+		// Add authorization header
+		if ( ! isset( $args['headers'] ) ) {
+			$args['headers'] = array();
+		}
+		$args['headers']['Authorization'] = 'token ' . $token;
+		if ( ! isset( $args['headers']['Accept'] ) ) {
+			$args['headers']['Accept'] = 'application/octet-stream';
+		}
+		// Allow larger files
+		$args['timeout'] = max( $args['timeout'] ?? 30, 300 );
 
 		return $args;
 	}
 
 	/**
+	 * Validate GitHub token format
+	 *
+	 * @param string $token GitHub token
+	 * @return bool True if valid format
+	 */
+	private function isValidGitHubToken( $token ) {
+		// GitHub tokens are alphanumeric with underscores, typically 40+ chars
+		// Classic tokens: 40 chars, Fine-grained: starts with 'github_pat_'
+		if ( strlen( $token ) < 20 ) {
+			return false;
+		}
+
+		// Check for valid characters only
+		if ( ! preg_match( '/^[a-zA-Z0-9_]+$/', $token ) ) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
 	 * Extract version number from GitHub tag
 	 *
+	 * Handles various version formats:
+	 * - v1.2.3, version-1.2.3, release_1.2.3
+	 * - 1.2.3-beta.1, 1.2.3+build.123
+	 * - 1.2 (two-part versions)
+	 * - 1.2.3.4 (four-part versions)
+	 *
 	 * @param string $tag Git tag name
-	 * @return string Version number
+	 * @return string Version number (empty string if invalid)
 	 */
 	private function extractVersionFromTag( $tag ) {
 		// Remove common prefixes like 'v', 'version', 'release'
 		$version = preg_replace( '/^(v|version|release)[-_]?/i', '', $tag );
 
-		// Validate semantic version format
-		if ( preg_match( '/^\d+\.\d+\.\d+/', $version ) ) {
-			return $version;
+		// Validate semantic version format (supports 2-4 part versions)
+		// Pattern: X.Y or X.Y.Z or X.Y.Z.W with optional pre-release/build metadata
+		if ( preg_match( '/^(\d+\.\d+(?:\.\d+)?(?:\.\d+)?)(?:[-+].*)?$/', $version, $matches ) ) {
+			// Return the base version without pre-release/build metadata
+			return $matches[1];
 		}
 
 		return '';
+	}
+
+	/**
+	 * Check if version is a pre-release
+	 *
+	 * @param string $tag Git tag name
+	 * @return bool True if pre-release
+	 */
+	private function isPreRelease( $tag ) {
+		// Remove common prefixes
+		$version = preg_replace( '/^(v|version|release)[-_]?/i', '', $tag );
+
+		// Check for pre-release identifiers
+		return (bool) preg_match( '/[-](alpha|beta|rc|pre|dev|snapshot)/i', $version );
 	}
 
 	/**
@@ -310,25 +444,31 @@ class Updater {
 	 * Find suitable download asset from release
 	 *
 	 * Looks for ZIP file matching pattern: {prefix}.zip
-	 * Falls back to GitHub's zipball_url if not found
+	 * Does NOT fall back to zipball if assets exist (to avoid bloat)
 	 *
 	 * @param array $release_data GitHub release data
 	 * @return string Download URL or empty string
 	 */
 	private function findDownloadAsset( $release_data ) {
 		if ( empty( $release_data['assets'] ) ) {
-			// No assets, fallback to zipball
-			return $this->getFallbackZipball( $release_data );
+			// No assets uploaded - this is an error
+			// We don't use zipball as it includes source code, tests, etc.
+			$this->logAction( 'Download', 'Failure', 'No assets found in release. Please upload a proper build ZIP file.' );
+			return '';
 		}
 
 		// Get prefix from config
 		$prefix = $this->config->getAssetPrefix();
 		$prefix = rtrim( $prefix, '-' ); // Remove trailing hyphen if exists
 
-		// Expected filename: prefix.zip
-		$expected_filename = $prefix . '.zip';
+		// Build list of acceptable filename patterns (more flexible matching)
+		$patterns = array(
+			strtolower( $prefix . '.zip' ),           // exact: prefix.zip
+			strtolower( str_replace( '_', '-', $prefix ) . '.zip' ), // underscores to hyphens
+			strtolower( str_replace( '-', '_', $prefix ) . '.zip' ), // hyphens to underscores
+		);
 
-		// Look for the exact file matching our pattern
+		// Look for matching ZIP file
 		foreach ( $release_data['assets'] as $asset ) {
 			if ( ! $this->isZipFile( $asset ) ) {
 				continue;
@@ -336,18 +476,39 @@ class Updater {
 
 			$asset_name = strtolower( $asset['name'] );
 
-			if ( strtolower( $expected_filename ) === $asset_name ) {
-				return apply_filters(
-					$this->config->getPluginSlug() . '_download_url',
-					$asset['browser_download_url'],
-					$asset,
-					$release_data
-				);
+			// Check against all patterns
+			foreach ( $patterns as $pattern ) {
+				if ( $asset_name === $pattern ) {
+					return apply_filters(
+						$this->config->getPluginSlug() . '_download_url',
+						$asset['browser_download_url'],
+						$asset,
+						$release_data
+					);
+				}
 			}
 		}
 
-		// Fallback to zipball URL
-		return $this->getFallbackZipball( $release_data );
+		// No matching asset found - log which assets we found
+		$available_assets = array_map(
+			function ( $asset ) {
+				return $asset['name'];
+			},
+			$release_data['assets']
+		);
+
+		$this->logAction(
+			'Download',
+			'Failure',
+			sprintf(
+				'No matching asset found. Expected: %s.zip. Available: %s',
+				$prefix,
+				implode( ', ', $available_assets )
+			)
+		);
+
+		// Do NOT fall back to zipball - return error instead
+		return '';
 	}
 
 	/**
@@ -359,25 +520,6 @@ class Updater {
 	private function isZipFile( $asset ) {
 		return 'application/zip' === $asset['content_type'] ||
 				'zip' === pathinfo( $asset['name'], PATHINFO_EXTENSION );
-	}
-
-	/**
-	 * Get fallback zipball URL
-	 *
-	 * @param array $release_data Release data
-	 * @return string
-	 */
-	private function getFallbackZipball( $release_data ) {
-		if ( ! empty( $release_data['zipball_url'] ) ) {
-			return apply_filters(
-				$this->config->getPluginSlug() . '_download_url',
-				$release_data['zipball_url'],
-				null,
-				$release_data
-			);
-		}
-
-		return '';
 	}
 
 	/**
@@ -406,5 +548,104 @@ class Updater {
 	 */
 	public function getLastLog() {
 		return $this->config->getOption( 'last_log', array() );
+	}
+
+	/**
+	 * Clear update cache and transients
+	 *
+	 * @return void
+	 */
+	private function clearUpdateCache() {
+		// Clear stored update data
+		$this->config->updateOption( 'latest_version', '' );
+		$this->config->updateOption( 'update_available', false );
+		$this->config->updateOption( 'release_snapshot', array() );
+
+		// Clear WordPress plugin update transient
+		$plugin_basename = $this->config->getPluginBasename();
+		$transient       = get_site_transient( 'update_plugins' );
+
+		if ( is_object( $transient ) && isset( $transient->response[ $plugin_basename ] ) ) {
+			unset( $transient->response[ $plugin_basename ] );
+			set_site_transient( 'update_plugins', $transient );
+		}
+	}
+
+	/**
+	 * Clear cache after WordPress completes plugin update
+	 *
+	 * @param \WP_Upgrader $upgrader WordPress upgrader instance
+	 * @param array        $options Update options
+	 * @return void
+	 */
+	public function clearCacheAfterUpdate( $upgrader, $options ) {
+		// Only proceed if this is a plugin update
+		if ( 'update' !== $options['action'] || 'plugin' !== $options['type'] ) {
+			return;
+		}
+
+		// Check if our plugin was updated
+		$plugin_basename = $this->config->getPluginBasename();
+		$plugins_updated = $options['plugins'] ?? array();
+
+		if ( in_array( $plugin_basename, $plugins_updated, true ) ) {
+			// Release update lock
+			$lock_key = 'update_in_progress_' . md5( $plugin_basename );
+			delete_transient( $lock_key );
+
+			// Remove GitHub auth filter after update completes
+			remove_filter( 'http_request_args', array( $this, 'httpAuthForGitHub' ), 10 );
+
+			// Clear the update cache after successful update
+			$this->clearUpdateCache();
+			$this->logAction( 'Update', 'Success', 'Plugin updated successfully. Cache cleared.' );
+		}
+	}
+
+	/**
+	 * Store rollback information before performing update
+	 *
+	 * @return void
+	 */
+	private function storeRollbackInfo() {
+		$rollback_info = array(
+			'version'    => $this->current_version,
+			'stored_at'  => time(),
+			'plugin_dir' => $this->plugin_dir,
+		);
+
+		$this->config->updateOption( 'rollback_info', $rollback_info );
+	}
+
+	/**
+	 * Get rollback information
+	 *
+	 * @return array|null Rollback info or null if not available
+	 */
+	public function getRollbackInfo() {
+		$rollback_info = $this->config->getOption( 'rollback_info', array() );
+
+		if ( empty( $rollback_info ) || empty( $rollback_info['version'] ) ) {
+			return null;
+		}
+
+		// Check if rollback is still valid (within 7 days)
+		$stored_at = $rollback_info['stored_at'] ?? 0;
+		if ( ( time() - $stored_at ) > ( 7 * DAY_IN_SECONDS ) ) {
+			// Rollback info expired
+			$this->config->updateOption( 'rollback_info', array() );
+			return null;
+		}
+
+		return $rollback_info;
+	}
+
+	/**
+	 * Clear rollback information
+	 *
+	 * @return void
+	 */
+	public function clearRollbackInfo() {
+		$this->config->updateOption( 'rollback_info', array() );
 	}
 }

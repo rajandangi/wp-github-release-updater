@@ -44,6 +44,56 @@ A lightweight, **highly portable** WordPress plugin that enables manual updates 
 3. ZipArchive PHP extension (for file extraction)
 4. `manage_options` capability for users
 
+### Required Plugin Headers
+
+Your plugin **must** include these standard WordPress plugin headers in the main plugin file for the updater to work correctly:
+
+```php
+<?php
+/**
+ * Plugin Name: Your Plugin Name
+ * Plugin URI: https://example.com/your-plugin
+ * Description: Brief description of your plugin
+ * Version: 1.0.0
+ * Author: Your Name
+ * Author URI: https://example.com
+ * Text Domain: your-plugin-slug
+ * Domain Path: /languages
+ * Requires at least: 6.0
+ * Requires PHP: 8.3
+ * License: GPL v2 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ */
+```
+
+**Minimum Required Headers:**
+- **Plugin Name** - Required for display in updater interface
+- **Version** - Required for version comparison and update detection
+
+**How Plugin Slug is Determined:**
+
+The plugin slug is **automatically extracted from the main plugin filename** (not from headers):
+
+```
+Example File: /wp-content/plugins/my-plugin/my-plugin.php
+                                             ↓
+Extracted Slug: my-plugin
+```
+
+The updater:
+1. Takes the filename you pass to `plugin_file` parameter
+2. Extracts basename: `my-plugin.php` → `my-plugin`
+3. Sanitizes it to create the slug
+4. Uses this slug for database option keys: `wp_my-plugin_{option_name}`
+
+**What gets read from headers:**
+- ✅ Plugin Name from "Plugin Name" header
+- ✅ Current Version from "Version" header
+- ✅ Text Domain from "Text Domain" header (optional, defaults to slug)
+
+**What gets extracted from filename:**
+- ✅ Plugin Slug (used for database option uniqueness)
+
 ---
 
 ## 🔧 Installation
@@ -74,6 +124,14 @@ A lightweight, **highly portable** WordPress plugin that enables manual updates 
 
 2. **Bootstrap the manager** (in your main plugin file):
    ```php
+    <?php
+    /**
+     * Plugin Name: Your Awesome Plugin
+     * Version: 1.0.0
+     * Text Domain: your-awesome-plugin
+     * ... other headers ...
+     */
+
     // Load the GitHub Updater Manager class.
     require_once __DIR__ . '/updater-manager/class-github-updater-manager.php';
 
@@ -81,24 +139,24 @@ A lightweight, **highly portable** WordPress plugin that enables manual updates 
     * Initialize the GitHub Updater
     *
     * Plugin info extracted automatically from file headers!
-    * Only need to provide unique prefix and menu titles.
+    * Plugin slug extracted from filename!
+    * Only need to provide menu titles - that's it!
     */
     function wpGitHubReleaseUpdater()
     {
         static $updater = null;
 
         if ($updater === null) {
-            // ULTRA-SIMPLE: Plugin info auto-extracted, just provide unique prefix!
+            // ULTRA-SIMPLE: Just provide menu titles!
             $updater = new \WPGitHubReleaseUpdater\GitHubUpdaterManager([
                 // Required
-                'plugin_file' => __FILE__,
-                'prefix' => 'wp_github_updater',  // Used for DB, AJAX, assets, nonces
-                'menu_title' => 'GitHub Updater',
-                'page_title' => 'GitHub Release Updater',
+                'plugin_file' => __FILE__,                    // Your main plugin file
+                'menu_title'  => 'GitHub Updater',            // Menu label
+                'page_title'  => 'GitHub Release Updater',    // Page title
 
                 // Optional
-                // 'menu_parent' => 'tools.php',  // Default: 'tools.php'
-                // 'capability' => 'manage_options',  // Default: 'manage_options'
+                // 'menu_parent' => 'tools.php',              // Default: 'tools.php'
+                // 'capability'  => 'manage_options',         // Default: 'manage_options'
             ]);
         }
 
@@ -115,6 +173,7 @@ A lightweight, **highly portable** WordPress plugin that enables manual updates 
         wpGitHubReleaseUpdater()->deactivate();
     });
 
+
     // Initialize the updater
     wpGitHubReleaseUpdater();
    ```
@@ -123,7 +182,49 @@ A lightweight, **highly portable** WordPress plugin that enables manual updates 
 
 ---
 
-## 📁 Folder Structure
+## 🔑 Automatic Uniqueness
+
+The updater automatically ensures complete isolation between plugins using **plugin slug** extracted from your filename:
+
+### What Gets the Plugin Slug?
+
+| Item | Format | Example |
+|------|--------|---------|
+| **Database Options** | `wp_{slug}_{option}` | `wp_my-plugin_latest_version` |
+| **AJAX Actions** | `{slug}_action` | `my-plugin_check` |
+| **Asset Handles** | `{slug}-handle` | `my-plugin-admin` |
+| **Nonces** | `{slug}_nonce` | `my-plugin_nonce` |
+
+**Plugin File:** `my-plugin.php` → **Slug:** `my-plugin`
+
+### Complete Isolation
+
+```
+Plugin A (my-plugin.php):
+- Options: wp_my-plugin_*
+- AJAX: my-plugin_check
+- Assets: my-plugin-admin
+- Nonce: my-plugin_nonce
+
+Plugin B (other-plugin.php):
+- Options: wp_other-plugin_*
+- AJAX: other-plugin_check
+- Assets: other-plugin-admin
+- Nonce: other-plugin_nonce
+
+✓ No collisions possible!
+```
+
+**Why this matters:**
+- ✅ Zero configuration needed for uniqueness
+- ✅ No `prefix` parameter required
+- ✅ Works with multisite installations
+- ✅ Prevents data collisions between plugins
+- ✅ Plugin slug extracted automatically from directory name
+
+---
+
+## �📁 Folder Structure
 
 ```
 updater-manager/
