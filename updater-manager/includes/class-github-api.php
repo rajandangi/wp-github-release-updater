@@ -64,8 +64,9 @@ class GitHubAPI {
 	 * Load configuration from WordPress options
 	 */
 	private function loadConfiguration() {
-		$repository_url     = $this->config->getOption( 'repository_url', '' );
-		$this->access_token = $this->config->getOption( 'access_token', '' );
+		$repository_url = $this->config->getOption( 'repository_url', '' );
+		// Use Config's decryption method to get access token
+		$this->access_token = $this->config->getAccessToken();
 
 		if ( ! empty( $repository_url ) ) {
 			$this->parseRepositoryUrl( $repository_url );

@@ -325,7 +325,8 @@ class Updater {
 	 * @return array Modified args
 	 */
 	public function httpAuthForGitHub( $args, $url ) {
-		$token = $this->config->getOption( 'access_token', '' );
+		// Get decrypted token using Config's method
+		$token = $this->config->getAccessToken();
 		if ( empty( $token ) ) {
 			return $args;
 		}

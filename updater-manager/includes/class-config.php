@@ -645,4 +645,116 @@ class Config {
 	public function deleteOption( $option_name ) {
 		return delete_option( $this->getOptionName( $option_name ) );
 	}
+
+	/**
+	 * Encrypt sensitive data using WordPress salts
+	 *
+	 * Uses AES-256-CBC encryption with WordPress authentication salts as key material.
+	 *
+	 * @param string $data Data to encrypt
+	 * @return string Encrypted data (base64: encrypted::iv) or empty string on failure
+	 */
+	public function encrypt( $data ) {
+		if ( empty( $data ) ) {
+			return '';
+		}
+
+		$method    = 'AES-256-CBC';
+		$iv        = openssl_random_pseudo_bytes( openssl_cipher_iv_length( $method ) );
+		$encrypted = openssl_encrypt( $data, $method, $this->getEncryptionKey(), 0, $iv );
+
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Used for encryption, not code obfuscation
+		return $encrypted ? base64_encode( $encrypted . '::' . base64_encode( $iv ) ) : '';
+	}
+
+	/**
+	 * Decrypt sensitive data
+	 *
+	 * @param string $encrypted_data Encrypted data (base64 encoded)
+	 * @return string Decrypted data or empty string on failure
+	 */
+	public function decrypt( $encrypted_data ) {
+		if ( empty( $encrypted_data ) ) {
+			return '';
+		}
+
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- Used for decryption, not code obfuscation
+		$decoded = base64_decode( $encrypted_data, true );
+		if ( ! $decoded || ! strpos( $decoded, '::' ) ) {
+			return '';
+		}
+
+		list( $encrypted, $iv_encoded ) = explode( '::', $decoded, 2 );
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- Used for decryption, not code obfuscation
+		$iv = base64_decode( $iv_encoded, true );
+
+		if ( ! $iv ) {
+			return '';
+		}
+
+		$decrypted = openssl_decrypt( $encrypted, 'AES-256-CBC', $this->getEncryptionKey(), 0, $iv );
+		return false !== $decrypted ? $decrypted : '';
+	}
+
+	/**
+	 * Get encryption key from WordPress salts
+	 *
+	 * @return string Encryption key (32 bytes for AES-256)
+	 */
+	private function getEncryptionKey() {
+		// Use WordPress authentication salts to create a unique key
+		// This ensures the key is unique per WordPress installation
+		$salt_keys = array(
+			'AUTH_KEY',
+			'SECURE_AUTH_KEY',
+			'LOGGED_IN_KEY',
+			'NONCE_KEY',
+		);
+
+		$key_material = '';
+		foreach ( $salt_keys as $salt_key ) {
+			if ( defined( $salt_key ) ) {
+				$key_material .= constant( $salt_key );
+			}
+		}
+
+		// If no salts defined, fall back to wp_salt
+		if ( empty( $key_material ) ) {
+			$key_material = wp_salt( 'auth' );
+		}
+
+		// Hash to get consistent 32-byte key for AES-256
+		return hash( 'sha256', $key_material, true );
+	}
+
+	/**
+	 * Save encrypted access token
+	 *
+	 * @param string $token Access token to encrypt and save
+	 * @return bool Success status
+	 */
+	public function saveAccessToken( $token ) {
+		if ( empty( $token ) ) {
+			// If token is empty, delete the option
+			return $this->deleteOption( 'access_token' );
+		}
+
+		$encrypted_token = $this->encrypt( $token );
+		return $this->updateOption( 'access_token', $encrypted_token );
+	}
+
+	/**
+	 * Get decrypted access token
+	 *
+	 * @return string Decrypted access token
+	 */
+	public function getAccessToken() {
+		$encrypted_token = $this->getOption( 'access_token', '' );
+
+		if ( empty( $encrypted_token ) ) {
+			return '';
+		}
+
+		return $this->decrypt( $encrypted_token );
+	}
 }

@@ -214,27 +214,39 @@ class Admin {
 	 * Access token field callback
 	 */
 	public function accessTokenFieldCallback() {
-		$value        = $this->config->getOption( 'access_token', '' );
-		$masked_value = ! empty( $value ) ? str_repeat( '*', strlen( $value ) ) : '';
+		// Get decrypted token to check if one exists
+		$decrypted_token = $this->config->getAccessToken();
+		$masked_value    = ! empty( $decrypted_token ) ? str_repeat( '*', min( strlen( $decrypted_token ), 40 ) ) : '';
 
 		echo '<input type="password" id="access_token" name="' . esc_attr( $this->config->getOptionName( 'access_token' ) ) . '" value="' . esc_attr( $masked_value ) . '" class="regular-text" placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />';
 		echo '<p class="description">Optional: Personal Access Token for private repositories. Leave empty for public repositories.</p>';
-		echo '<p class="description"><strong>Note:</strong> If you see asterisks, the token is already saved. Enter a new token to replace it.</p>';
+		echo '<p class="description"><strong>Security:</strong> Token is encrypted before storage. If you see asterisks, a token is already saved.</p>';
+		echo '<p class="description"><strong>To update:</strong> Enter a new token to replace the existing one.</p>';
 	}
 
 	/**
 	 * Sanitize access token
 	 *
 	 * @param string $token Access token
-	 * @return string Sanitized token
+	 * @return string Encrypted token
 	 */
 	public function sanitizeAccessToken( $token ) {
-		// If token is masked (all asterisks), keep the existing token
+		// If token is masked (all asterisks), keep the existing encrypted token
 		if ( preg_match( '/^\*+$/', $token ) ) {
 			return $this->config->getOption( 'access_token', '' );
 		}
 
-		return sanitize_text_field( $token );
+		// If empty, delete the token
+		if ( empty( trim( $token ) ) ) {
+			return '';
+		}
+
+		// Sanitize then encrypt the new token
+		$sanitized_token = sanitize_text_field( $token );
+
+		// Return the encrypted token directly
+		// WordPress will save this via update_option
+		return $this->config->encrypt( $sanitized_token );
 	}
 
 	/**

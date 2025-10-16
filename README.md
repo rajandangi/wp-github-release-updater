@@ -27,10 +27,11 @@ A lightweight, **highly portable** WordPress plugin that enables manual updates 
 - **Ultra-Simple Integration** - One manager class handles everything
 - **Manual Updates Only** - No automatic checks or background processes
 - **Public & Private Repositories** - Support for both with Personal Access Tokens
+- **Encrypted Token Storage** - Access tokens encrypted using WordPress salts (AES-256-CBC)
 - **Simple Interface** - Clean admin panel under Tools menu
 - **Version Validation** - Semantic version comparison
 - **Minimal Logging** - Single-entry log of recent actions
-- **Security First** - Proper permission checks and input sanitization
+- **Security First** - Proper permission checks, input sanitization, and encrypted credentials
 - **No Dependencies** - Vanilla JavaScript, no jQuery required
 - **Highly Portable** - One class, ~15 lines of code
 - **Dynamic Prefix** - Automatically uses WordPress table prefix
@@ -255,11 +256,56 @@ Accepts either format:
 ### 2. Access Token (Optional)
 - Leave empty for public repos
 - For private repos, use a GitHub Personal Access Token with `repo` scope
+- **Security:** Tokens are automatically encrypted using WordPress salts (AES-256-CBC)
+- Stored tokens cannot be viewed in the database (encrypted at rest)
 
 ### 3. Actions
 - **Test Repository Access** - Quick connectivity check
 - **Check for Updates** - Fetch latest GitHub release and compare versions
 - **Update Now** - Download and install using WordPress's native updater
+
+---
+
+## 🔒 Security Features
+
+### Access Token Encryption
+
+The updater implements **AES-256-CBC encryption** for GitHub access tokens:
+
+1. **Industry-Standard Encryption**
+   - AES-256-CBC with OpenSSL (guaranteed in PHP 8.3+)
+   - Unique initialization vector (IV) per encryption
+   - 256-bit key derived from WordPress salts
+
+2. **WordPress Salt-Based Keys**
+   - Uses `AUTH_KEY`, `SECURE_AUTH_KEY`, `LOGGED_IN_KEY`, and `NONCE_KEY`
+   - Unique per WordPress installation
+   - Cannot be decrypted without access to `wp-config.php`
+
+### Token Protection
+
+- ✅ Encrypted at rest in database
+- ✅ Never logged or displayed in plain text
+- ✅ Only sent to verified GitHub domains
+- ✅ Strict host validation prevents token leaks
+- ✅ Authorization header only added during downloads
+- ✅ Removed from HTTP filters after update completes
+
+### Best Practices
+
+1. **Use Fine-Grained Personal Access Tokens** (recommended)
+   - Create at: https://github.com/settings/tokens?type=beta
+   - Grant only `Contents: Read-only` permission
+   - Limit to specific repositories
+
+2. **Regular Token Rotation**
+   - Rotate tokens every 90 days
+   - Revoke unused tokens immediately
+
+3. **Secure Your WordPress Installation**
+   - Keep `wp-config.php` above web root
+   - Use strong, unique WordPress salts
+   - Regular security audits
 
 ---
 
