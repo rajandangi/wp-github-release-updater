@@ -8,425 +8,423 @@
 namespace WPGitHubReleaseUpdater;
 
 // Prevent direct access
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
  * Admin class
  */
-class Admin
-{
-    /**
-     * Config instance
-     */
-    private $config;
+class Admin {
 
-    /**
-     * GitHub API instance
-     */
-    private $github_api;
+	/**
+	 * Config instance
+	 *
+	 * @var Config
+	 */
+	private $config;
 
-    /**
-     * Updater instance
-     */
-    private $updater;
+	/**
+	 * GitHub API instance
+	 *
+	 * @var GitHubAPI
+	 */
+	private $github_api;
 
-    /**
-     * Constructor
-     *
-     * @param Config $config Configuration instance
-     * @param GitHubAPI $github_api GitHub API instance
-     * @param Updater $updater Updater instance
-     */
-    public function __construct($config, $github_api, $updater)
-    {
-        $this->config = $config;
-        $this->github_api = $github_api;
-        $this->updater = $updater;
+	/**
+	 * Updater instance
+	 *
+	 * @var Updater
+	 */
+	private $updater;
 
-        $this->initHooks();
-    }
+	/**
+	 * Constructor
+	 *
+	 * @param Config    $config Configuration instance.
+	 * @param GitHubAPI $github_api GitHub API instance.
+	 * @param Updater   $updater Updater instance.
+	 */
+	public function __construct( $config, $github_api, $updater ) {
+		$this->config     = $config;
+		$this->github_api = $github_api;
+		$this->updater    = $updater;
 
-    /**
-     * Initialize WordPress hooks
-     */
-    private function initHooks()
-    {
-        add_action('admin_menu', [$this, 'addAdminMenu']);
-        add_action('admin_init', [$this, 'registerSettings']);
-        add_action('admin_enqueue_scripts', [$this, 'enqueueScripts']);
-        add_action('wp_ajax_' . $this->config->getAjaxCheckAction(), [$this, 'ajaxCheckForUpdates']);
-        add_action('wp_ajax_' . $this->config->getAjaxUpdateAction(), [$this, 'ajaxPerformUpdate']);
-        add_action('wp_ajax_' . $this->config->getAjaxTestRepoAction(), [$this, 'ajaxTestRepository']);
-        add_action('admin_notices', [$this, 'showAdminNotices']);
-    }
+		$this->initHooks();
+	}
 
-    /**
-     * Add admin menu page
-     */
-    public function addAdminMenu()
-    {
-        add_management_page(
-            $this->config->getPageTitle(),
-            $this->config->getMenuTitle(),
-            $this->config->getCapability(),
-            $this->config->getSettingsPageSlug(),
-            [$this, 'displaySettingsPage']
-        );
-    }
+	/**
+	 * Initialize WordPress hooks
+	 */
+	private function initHooks() {
+		add_action( 'admin_menu', array( $this, 'addAdminMenu' ) );
+		add_action( 'admin_init', array( $this, 'registerSettings' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueueScripts' ) );
+		add_action( 'wp_ajax_' . $this->config->getAjaxCheckAction(), array( $this, 'ajaxCheckForUpdates' ) );
+		add_action( 'wp_ajax_' . $this->config->getAjaxUpdateAction(), array( $this, 'ajaxPerformUpdate' ) );
+		add_action( 'wp_ajax_' . $this->config->getAjaxTestRepoAction(), array( $this, 'ajaxTestRepository' ) );
+		add_action( 'admin_notices', array( $this, 'showAdminNotices' ) );
+	}
 
-    /**
-     * Register plugin settings
-     */
-    public function registerSettings()
-    {
-        register_setting(
-            $this->config->getSettingsGroup(),
-            $this->config->getOptionName('repository_url'),
-            [
-                'type' => 'string',
-                'sanitize_callback' => 'sanitize_text_field',
-                'default' => ''
-            ]
-        );
+	/**
+	 * Add admin menu page
+	 */
+	public function addAdminMenu() {
+		add_management_page(
+			$this->config->getPageTitle(),
+			$this->config->getMenuTitle(),
+			$this->config->getCapability(),
+			$this->config->getSettingsPageSlug(),
+			array( $this, 'displaySettingsPage' )
+		);
+	}
 
-        register_setting(
-            $this->config->getSettingsGroup(),
-            $this->config->getOptionName('access_token'),
-            [
-                'type' => 'string',
-                'sanitize_callback' => [$this, 'sanitizeAccessToken'],
-                'default' => ''
-            ]
-        );
+	/**
+	 * Register plugin settings
+	 */
+	public function registerSettings() {
+		register_setting(
+			$this->config->getSettingsGroup(),
+			$this->config->getOptionName( 'repository_url' ),
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => 'sanitize_text_field',
+				'default'           => '',
+			)
+		);
 
-        // Add settings sections
-        add_settings_section(
-            $this->config->getSettingsSection(),
-            'Repository Configuration',
-            [$this, 'settingsSectionCallback'],
-            $this->config->getSettingsPageSlug()
-        );
+		register_setting(
+			$this->config->getSettingsGroup(),
+			$this->config->getOptionName( 'access_token' ),
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => array( $this, 'sanitizeAccessToken' ),
+				'default'           => '',
+			)
+		);
 
-        // Repository URL field
-        add_settings_field(
-            'repository_url',
-            'Repository URL',
-            [$this, 'repositoryUrlFieldCallback'],
-            $this->config->getSettingsPageSlug(),
-            $this->config->getSettingsSection()
-        );
+		// Add settings sections
+		add_settings_section(
+			$this->config->getSettingsSection(),
+			'Repository Configuration',
+			array( $this, 'settingsSectionCallback' ),
+			$this->config->getSettingsPageSlug()
+		);
 
-        // Access token field
-        add_settings_field(
-            'access_token',
-            'Access Token',
-            [$this, 'accessTokenFieldCallback'],
-            $this->config->getSettingsPageSlug(),
-            $this->config->getSettingsSection()
-        );
-    }
+		// Repository URL field
+		add_settings_field(
+			'repository_url',
+			'Repository URL',
+			array( $this, 'repositoryUrlFieldCallback' ),
+			$this->config->getSettingsPageSlug(),
+			$this->config->getSettingsSection()
+		);
 
-    /**
-     * Enqueue admin scripts and styles
-     *
-     * @param string $hook Current admin page hook
-     */
-    public function enqueueScripts($hook)
-    {
-        // Determine the menu parent prefix for the page hook
-        $menu_parent_prefix = str_replace('.php', '', $this->config->getMenuParent());
-        $expected_hook = $menu_parent_prefix . '_page_' . $this->config->getSettingsPageSlug();
+		// Access token field
+		add_settings_field(
+			'access_token',
+			'Access Token',
+			array( $this, 'accessTokenFieldCallback' ),
+			$this->config->getSettingsPageSlug(),
+			$this->config->getSettingsSection()
+		);
+	}
 
-        if ($hook !== $expected_hook) {
-            return;
-        }
+	/**
+	 * Enqueue admin scripts and styles
+	 *
+	 * @param string $hook Current admin page hook
+	 */
+	public function enqueueScripts( $hook ) {
+		// Determine the menu parent prefix for the page hook
+		$menu_parent_prefix = str_replace( '.php', '', $this->config->getMenuParent() );
+		$expected_hook      = $menu_parent_prefix . '_page_' . $this->config->getSettingsPageSlug();
 
-        wp_enqueue_script(
-            $this->config->getScriptHandle(),
-            $this->config->getUpdaterUrl() . 'admin/js/admin.js',
-            [],
-            $this->config->getPluginVersion(),
-            true
-        );
+		if ( $hook !== $expected_hook ) {
+			return;
+		}
 
-        wp_enqueue_style(
-            $this->config->getStyleHandle(),
-            $this->config->getUpdaterUrl() . 'admin/css/admin.css',
-            [],
-            $this->config->getPluginVersion()
-        );
+		wp_enqueue_script(
+			$this->config->getScriptHandle(),
+			$this->config->getUpdaterUrl() . 'admin/js/admin.js',
+			array(),
+			$this->config->getPluginVersion(),
+			true
+		);
 
-        // Localize script for AJAX
-        wp_localize_script($this->config->getScriptHandle(), 'wpGitHubUpdater', [
-            'ajaxUrl' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce($this->config->getNonceName()),
-            'actions' => [
-                'check' => $this->config->getAjaxCheckAction(),
-                'update' => $this->config->getAjaxUpdateAction(),
-                'testRepo' => $this->config->getAjaxTestRepoAction(),
-            ],
-            'strings' => [
-                'checking' => 'Checking for updates...',
-                'updating' => 'Updating plugin...',
-                'testing' => 'Testing repository access...',
-                'error' => 'An error occurred. Please try again.',
-                'confirm_update' => 'Are you sure you want to update the plugin? This action cannot be undone.',
-                'success' => 'Operation completed successfully.',
-            ]
-        ]);
-    }
+		wp_enqueue_style(
+			$this->config->getStyleHandle(),
+			$this->config->getUpdaterUrl() . 'admin/css/admin.css',
+			array(),
+			$this->config->getPluginVersion()
+		);
 
-    /**
-     * Display settings page
-     */
-    public function displaySettingsPage()
-    {
-        if (!current_user_can($this->config->getCapability())) {
-            wp_die(__('You do not have sufficient permissions to access this page.'));
-        }
+		// Localize script for AJAX
+		wp_localize_script(
+			$this->config->getScriptHandle(),
+			'wpGitHubUpdater',
+			array(
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'nonce'   => wp_create_nonce( $this->config->getNonceName() ),
+				'actions' => array(
+					'check'    => $this->config->getAjaxCheckAction(),
+					'update'   => $this->config->getAjaxUpdateAction(),
+					'testRepo' => $this->config->getAjaxTestRepoAction(),
+				),
+				'strings' => array(
+					'checking'       => 'Checking for updates...',
+					'updating'       => 'Updating plugin...',
+					'testing'        => 'Testing repository access...',
+					'error'          => 'An error occurred. Please try again.',
+					'confirm_update' => 'Are you sure you want to update the plugin? This action cannot be undone.',
+					'success'        => 'Operation completed successfully.',
+				),
+			)
+		);
+	}
 
-        include $this->config->getUpdaterDir() . 'admin/views/settings.php';
-    }
+	/**
+	 * Display settings page
+	 */
+	public function displaySettingsPage() {
+		if ( ! current_user_can( $this->config->getCapability() ) ) {
+			wp_die( __( 'You do not have sufficient permissions to access this page.' ) );
+		}
 
-    /**
-     * Settings section callback
-     */
-    public function settingsSectionCallback()
-    {
-        echo '<p>Configure your GitHub repository for automatic updates.</p>';
-    }
+		include $this->config->getUpdaterDir() . 'admin/views/settings.php';
+	}
 
-    /**
-     * Repository URL field callback
-     */
-    public function repositoryUrlFieldCallback()
-    {
-        $value = $this->config->getOption('repository_url', '');
-        echo '<input type="text" id="repository_url" name="' . esc_attr($this->config->getOptionName('repository_url')) . '" value="' . esc_attr($value) . '" class="regular-text" placeholder="owner/repo or https://github.com/owner/repo" />';
-        echo '<p class="description">Enter the GitHub repository URL or owner/repo format.</p>';
-    }
+	/**
+	 * Settings section callback
+	 */
+	public function settingsSectionCallback() {
+		echo '<p>Configure your GitHub repository for automatic updates.</p>';
+	}
 
-    /**
-     * Access token field callback
-     */
-    public function accessTokenFieldCallback()
-    {
-        $value = $this->config->getOption('access_token', '');
-        $masked_value = !empty($value) ? str_repeat('*', strlen($value)) : '';
+	/**
+	 * Repository URL field callback
+	 */
+	public function repositoryUrlFieldCallback() {
+		$value = $this->config->getOption( 'repository_url', '' );
+		echo '<input type="text" id="repository_url" name="' . esc_attr( $this->config->getOptionName( 'repository_url' ) ) . '" value="' . esc_attr( $value ) . '" class="regular-text" placeholder="owner/repo or https://github.com/owner/repo" />';
+		echo '<p class="description">Enter the GitHub repository URL or owner/repo format.</p>';
+	}
 
-        echo '<input type="password" id="access_token" name="' . esc_attr($this->config->getOptionName('access_token')) . '" value="' . esc_attr($masked_value) . '" class="regular-text" placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />';
-        echo '<p class="description">Optional: Personal Access Token for private repositories. Leave empty for public repositories.</p>';
-        echo '<p class="description"><strong>Note:</strong> If you see asterisks, the token is already saved. Enter a new token to replace it.</p>';
-    }
+	/**
+	 * Access token field callback
+	 */
+	public function accessTokenFieldCallback() {
+		$value        = $this->config->getOption( 'access_token', '' );
+		$masked_value = ! empty( $value ) ? str_repeat( '*', strlen( $value ) ) : '';
 
-    /**
-     * Sanitize access token
-     *
-     * @param string $token Access token
-     * @return string Sanitized token
-     */
-    public function sanitizeAccessToken($token)
-    {
-        // If token is masked (all asterisks), keep the existing token
-        if (preg_match('/^\*+$/', $token)) {
-            return $this->config->getOption('access_token', '');
-        }
+		echo '<input type="password" id="access_token" name="' . esc_attr( $this->config->getOptionName( 'access_token' ) ) . '" value="' . esc_attr( $masked_value ) . '" class="regular-text" placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />';
+		echo '<p class="description">Optional: Personal Access Token for private repositories. Leave empty for public repositories.</p>';
+		echo '<p class="description"><strong>Note:</strong> If you see asterisks, the token is already saved. Enter a new token to replace it.</p>';
+	}
 
-        return sanitize_text_field($token);
-    }
+	/**
+	 * Sanitize access token
+	 *
+	 * @param string $token Access token
+	 * @return string Sanitized token
+	 */
+	public function sanitizeAccessToken( $token ) {
+		// If token is masked (all asterisks), keep the existing token
+		if ( preg_match( '/^\*+$/', $token ) ) {
+			return $this->config->getOption( 'access_token', '' );
+		}
 
-    /**
-     * AJAX handler for checking updates
-     */
-    public function ajaxCheckForUpdates()
-    {
-        // Verify nonce and permissions
-        if (!wp_verify_nonce($_POST['nonce'], $this->config->getNonceName()) || !current_user_can($this->config->getCapability())) {
-            wp_die('Security check failed');
-        }
+		return sanitize_text_field( $token );
+	}
 
-        // Reload GitHub API configuration
-        $this->github_api->__construct($this->config);
+	/**
+	 * AJAX handler for checking updates
+	 */
+	public function ajaxCheckForUpdates() {
+		// Verify nonce and permissions
+		if ( ! wp_verify_nonce( $_POST['nonce'], $this->config->getNonceName() ) || ! current_user_can( $this->config->getCapability() ) ) {
+			wp_die( 'Security check failed' );
+		}
 
-        $result = $this->updater->checkForUpdates();
+		// Reload GitHub API configuration
+		$this->github_api->__construct( $this->config );
 
-        wp_send_json($result);
-    }
+		$result = $this->updater->checkForUpdates();
 
-    /**
-     * AJAX handler for performing updates
-     */
-    public function ajaxPerformUpdate()
-    {
-        // Verify nonce and permissions
-        if (!wp_verify_nonce($_POST['nonce'], $this->config->getNonceName()) || !current_user_can($this->config->getCapability())) {
-            wp_die('Security check failed');
-        }
+		wp_send_json( $result );
+	}
 
-        $result = $this->updater->performUpdate();
+	/**
+	 * AJAX handler for performing updates
+	 */
+	public function ajaxPerformUpdate() {
+		// Verify nonce and permissions
+		if ( ! wp_verify_nonce( $_POST['nonce'], $this->config->getNonceName() ) || ! current_user_can( $this->config->getCapability() ) ) {
+			wp_die( 'Security check failed' );
+		}
 
-        wp_send_json($result);
-    }
+		$result = $this->updater->performUpdate();
 
-    /**
-     * AJAX handler for testing repository access
-     */
-    public function ajaxTestRepository()
-    {
-        // Verify nonce and permissions
-        if (!wp_verify_nonce($_POST['nonce'], $this->config->getNonceName()) || !current_user_can($this->config->getCapability())) {
-            wp_die('Security check failed');
-        }
+		wp_send_json( $result );
+	}
 
-        // Get posted settings
-        $repository_url = sanitize_text_field($_POST['repository_url'] ?? '');
-        $access_token = sanitize_text_field($_POST['access_token'] ?? '');
+	/**
+	 * AJAX handler for testing repository access
+	 */
+	public function ajaxTestRepository() {
+		// Verify nonce and permissions
+		if ( ! wp_verify_nonce( $_POST['nonce'], $this->config->getNonceName() ) || ! current_user_can( $this->config->getCapability() ) ) {
+			wp_die( 'Security check failed' );
+		}
 
-        // If token is masked, get the existing one
-        if (preg_match('/^\*+$/', $access_token)) {
-            $access_token = $this->config->getOption('access_token', '');
-        }
+		// Get posted settings
+		$repository_url = sanitize_text_field( $_POST['repository_url'] ?? '' );
+		$access_token   = sanitize_text_field( $_POST['access_token'] ?? '' );
 
-        // Test with the provided settings
-        $test_api = new GitHubAPI($this->config);
+		// If token is masked, get the existing one
+		if ( preg_match( '/^\*+$/', $access_token ) ) {
+			$access_token = $this->config->getOption( 'access_token', '' );
+		}
 
-        // Parse repository URL and remove .git suffix if present
-        if (preg_match('/^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)$/', $repository_url, $matches)) {
-            $test_api->setRepository($matches[1], $matches[2], $access_token);
-        } elseif (preg_match('/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+?)(?:\.git)?(?:\/)?$/', $repository_url, $matches)) {
-            $test_api->setRepository($matches[1], $matches[2], $access_token);
-        } else {
-            wp_send_json([
-                'success' => false,
-                'message' => 'Invalid repository URL format.'
-            ]);
-            return;
-        }
+		// Test with the provided settings
+		$test_api = new GitHubAPI( $this->config );
 
-        $test_result = $test_api->testRepositoryAccess();
+		// Parse repository URL and remove .git suffix if present
+		if ( preg_match( '/^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)$/', $repository_url, $matches ) ) {
+			$test_api->setRepository( $matches[1], $matches[2], $access_token );
+		} elseif ( preg_match( '/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+?)(?:\.git)?(?:\/)?$/', $repository_url, $matches ) ) {
+			$test_api->setRepository( $matches[1], $matches[2], $access_token );
+		} else {
+			wp_send_json(
+				array(
+					'success' => false,
+					'message' => 'Invalid repository URL format.',
+				)
+			);
+			return;
+		}
 
-        if (is_wp_error($test_result)) {
-            wp_send_json([
-                'success' => false,
-                'message' => $test_result->get_error_message()
-            ]);
-        } else {
-            wp_send_json([
-                'success' => true,
-                'message' => 'Repository access successful!'
-            ]);
-        }
-    }
+		$test_result = $test_api->testRepositoryAccess();
 
-    /**
-     * Show admin notices
-     */
-    public function showAdminNotices()
-    {
-        $screen = get_current_screen();
+		if ( is_wp_error( $test_result ) ) {
+			wp_send_json(
+				array(
+					'success' => false,
+					'message' => $test_result->get_error_message(),
+				)
+			);
+		} else {
+			wp_send_json(
+				array(
+					'success' => true,
+					'message' => 'Repository access successful!',
+				)
+			);
+		}
+	}
 
-        // Determine the menu parent prefix for the page hook
-        $menu_parent_prefix = str_replace('.php', '', $this->config->getMenuParent());
-        $expected_screen_id = $menu_parent_prefix . '_page_' . $this->config->getSettingsPageSlug();
+	/**
+	 * Show admin notices
+	 */
+	public function showAdminNotices() {
+		$screen = get_current_screen();
 
-        if ($screen->id !== $expected_screen_id) {
-            return;
-        }
+		// Determine the menu parent prefix for the page hook
+		$menu_parent_prefix = str_replace( '.php', '', $this->config->getMenuParent() );
+		$expected_screen_id = $menu_parent_prefix . '_page_' . $this->config->getSettingsPageSlug();
 
-        // Show configuration reminder
-        $repository_url = $this->config->getOption('repository_url', '');
+		if ( $screen->id !== $expected_screen_id ) {
+			return;
+		}
 
-        if (empty($repository_url)) {
-            echo '<div class="notice notice-warning"><p>';
-            echo '<strong>' . esc_html($this->config->getPluginName()) . ':</strong> Please configure your repository URL to enable updates.';
-            echo '</p></div>';
-        }
+		// Show configuration reminder
+		$repository_url = $this->config->getOption( 'repository_url', '' );
 
-        // Show settings saved notice
-        if (isset($_GET['settings-updated']) && $_GET['settings-updated'] === 'true') {
-            echo '<div class="notice notice-success is-dismissible"><p>';
-            echo 'Settings saved successfully.';
-            echo '</p></div>';
-        }
-    }
+		if ( empty( $repository_url ) ) {
+			echo '<div class="notice notice-warning"><p>';
+			echo '<strong>' . esc_html( $this->config->getPluginName() ) . ':</strong> Please configure your repository URL to enable updates.';
+			echo '</p></div>';
+		}
 
-    /**
-     * Get current plugin status for display
-     *
-     * @return array Status information
-     */
-    public function getPluginStatus()
-    {
-        return [
-            'current_version' => $this->config->getPluginVersion(),
-            'latest_version' => $this->config->getOption('latest_version', ''),
-            'update_available' => $this->config->getOption('update_available', false),
-            'last_checked' => $this->config->getOption('last_checked', 0),
-            'repository_configured' => !empty($this->config->getOption('repository_url', '')),
-            'last_log' => $this->updater->getLastLog()
-        ];
-    }
+		// Show settings saved notice
+		if ( isset( $_GET['settings-updated'] ) && $_GET['settings-updated'] === 'true' ) {
+			echo '<div class="notice notice-success is-dismissible"><p>';
+			echo 'Settings saved successfully.';
+			echo '</p></div>';
+		}
+	}
 
-    /**
-     * Format timestamp for display
-     *
-     * @param int $timestamp Unix timestamp
-     * @return string Formatted date
-     */
-    public function formatTimestamp($timestamp)
-    {
-        if (empty($timestamp)) {
-            return 'Never';
-        }
+	/**
+	 * Get current plugin status for display
+	 *
+	 * @return array Status information
+	 */
+	public function getPluginStatus() {
+		return array(
+			'current_version'       => $this->config->getPluginVersion(),
+			'latest_version'        => $this->config->getOption( 'latest_version', '' ),
+			'update_available'      => $this->config->getOption( 'update_available', false ),
+			'last_checked'          => $this->config->getOption( 'last_checked', 0 ),
+			'repository_configured' => ! empty( $this->config->getOption( 'repository_url', '' ) ),
+			'last_log'              => $this->updater->getLastLog(),
+		);
+	}
 
-        return date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $timestamp);
-    }
+	/**
+	 * Format timestamp for display
+	 *
+	 * @param int $timestamp Unix timestamp
+	 * @return string Formatted date
+	 */
+	public function formatTimestamp( $timestamp ) {
+		if ( empty( $timestamp ) ) {
+			return 'Never';
+		}
 
-    /**
-     * Get update status message
-     *
-     * @param array $status Plugin status
-     * @return string Status message
-     */
-    public function getStatusMessage($status)
-    {
-        if (!$status['repository_configured']) {
-            return 'Repository not configured';
-        }
+		return date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $timestamp );
+	}
 
-        if (empty($status['latest_version'])) {
-            return 'Update check required';
-        }
+	/**
+	 * Get update status message
+	 *
+	 * @param array $status Plugin status
+	 * @return string Status message
+	 */
+	public function getStatusMessage( $status ) {
+		if ( ! $status['repository_configured'] ) {
+			return 'Repository not configured';
+		}
 
-        if ($status['update_available']) {
-            return sprintf(
-                'Update available: %s → %s',
-                $status['current_version'],
-                $status['latest_version']
-            );
-        }
+		if ( empty( $status['latest_version'] ) ) {
+			return 'Update check required';
+		}
 
-        return 'Plugin is up to date';
-    }
+		if ( $status['update_available'] ) {
+			return sprintf(
+				'Update available: %s → %s',
+				$status['current_version'],
+				$status['latest_version']
+			);
+		}
 
-    /**
-     * Get status badge CSS class
-     *
-     * @param array $status Plugin status
-     * @return string CSS class
-     */
-    public function getStatusBadgeClass($status)
-    {
-        if (!$status['repository_configured'] || empty($status['latest_version'])) {
-            return 'badge-warning';
-        }
+		return 'Plugin is up to date';
+	}
 
-        if ($status['update_available']) {
-            return 'badge-info';
-        }
+	/**
+	 * Get status badge CSS class
+	 *
+	 * @param array $status Plugin status
+	 * @return string CSS class
+	 */
+	public function getStatusBadgeClass( $status ) {
+		if ( ! $status['repository_configured'] || empty( $status['latest_version'] ) ) {
+			return 'badge-warning';
+		}
 
-        return 'badge-success';
-    }
+		if ( $status['update_available'] ) {
+			return 'badge-info';
+		}
+
+		return 'badge-success';
+	}
 }

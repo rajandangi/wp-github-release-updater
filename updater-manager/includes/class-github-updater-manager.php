@@ -11,8 +11,8 @@
 namespace WPGitHubReleaseUpdater;
 
 // Prevent direct access
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
@@ -27,181 +27,187 @@ if (!defined('ABSPATH')) {
  *     'prefix' => 'myplugin_gh'  // Just provide a unique prefix!
  * ]);
  */
-class GitHubUpdaterManager
-{
-    /**
-     * Configuration instance
-     */
-    private $config;
+class GitHubUpdaterManager {
 
-    /**
-     * GitHub API instance
-     */
-    private $github_api;
+	/**
+	 * Configuration instance
+	 *
+	 * @var Config
+	 */
+	private $config;
 
-    /**
-     * Updater instance
-     */
-    private $updater;
+	/**
+	 * GitHub API instance
+	 *
+	 * @var GitHubAPI|null
+	 */
+	private $github_api;
 
-    /**
-     * Admin instance
-     */
-    private $admin;
+	/**
+	 * Updater instance
+	 *
+	 * @var Updater|null
+	 */
+	private $updater;
 
-    /**
-     * Whether the manager has been initialized
-     */
-    private $initialized = false;
+	/**
+	 * Admin instance
+	 *
+	 * @var Admin|null
+	 */
+	private $admin;
 
-    /**
-     * Constructor
-     *
-     * Plugin info is automatically extracted from your plugin file!
-     *
-     * @param array $config_options Configuration options
-     *   Required:
-     *     - plugin_file: string - Your plugin file path (__FILE__)
-     *     - prefix: string - Unique prefix (e.g., 'myplugin_gh')
-     *
-     *   OR instead of 'prefix', use individual prefixes:
-     *     - option_suffix: string (for database options)
-     *     - ajax_prefix: string (for AJAX actions)
-     *     - asset_prefix: string (for JS/CSS handles)
-     *     - nonce_name: string (for security nonce)
-     *
-     *   Optional:
-     *     - menu_parent: string (default: 'tools.php')
-     *     - menu_title: string (default: 'GitHub Updater')
-     *     - page_title: string (default: 'GitHub Release Updater')
-     *     - capability: string (default: 'manage_options')
-     */
-    public function __construct($config_options = [])
-    {
-        // Extract plugin file
-        $plugin_file = $config_options['plugin_file'] ?? null;
+	/**
+	 * Whether the manager has been initialized
+	 *
+	 * @var bool
+	 */
+	private $initialized = false;
 
-        if (!$plugin_file) {
-            wp_die('GitHubUpdaterManager requires plugin_file parameter');
-        }
+	/**
+	 * Constructor
+	 *
+	 * Plugin info is automatically extracted from your plugin file!
+	 *
+	 * @param array $config_options Configuration options
+	 *   Required:
+	 *     - plugin_file: string - Your plugin file path (__FILE__)
+	 *     - prefix: string - Unique prefix (e.g., 'myplugin_gh')
+	 *
+	 *   OR instead of 'prefix', use individual prefixes:
+	 *     - option_suffix: string (for database options)
+	 *     - ajax_prefix: string (for AJAX actions)
+	 *     - asset_prefix: string (for JS/CSS handles)
+	 *     - nonce_name: string (for security nonce)
+	 *
+	 *   Optional:
+	 *     - menu_parent: string (default: 'tools.php')
+	 *     - menu_title: string (default: 'GitHub Updater')
+	 *     - page_title: string (default: 'GitHub Release Updater')
+	 *     - capability: string (default: 'manage_options')
+	 */
+	public function __construct( $config_options = array() ) {
+		// Extract plugin file
+		$plugin_file = $config_options['plugin_file'] ?? null;
 
-        // Create config instance - plugin info extracted automatically!
-        $this->config = Config::getInstance($plugin_file, $config_options);
+		if ( ! $plugin_file ) {
+			wp_die( 'GitHubUpdaterManager requires plugin_file parameter' );
+		}
 
-        // Register hooks
-        $this->registerHooks();
-    }    /**
-     * Register WordPress hooks
-     */
-    private function registerHooks()
-    {
-        // Activation/deactivation hooks must be registered in main plugin file
-        // So we provide public methods for those
+		// Create config instance - plugin info extracted automatically!
+		$this->config = Config::getInstance( $plugin_file, $config_options );
 
-        // Initialize on plugins_loaded
-        add_action('plugins_loaded', [$this, 'init']);
-    }
+		// Register hooks
+		$this->registerHooks();
+	}
 
-    /**
-     * Initialize the updater components
-     *
-     * Called automatically on plugins_loaded hook
-     */
-    public function init()
-    {
-        // Only initialize once
-        if ($this->initialized) {
-            return;
-        }
 
-        // Only load in admin area
-        if (!is_admin()) {
-            return;
-        }
+	/**
+	 * Register WordPress hooks
+	 */
+	private function registerHooks() {
+		// Activation/deactivation hooks must be registered in main plugin file
+		// So we provide public methods for those
 
-        // Load dependencies
-        $this->loadDependencies();
+		// Initialize on plugins_loaded
+		add_action( 'plugins_loaded', array( $this, 'init' ) );
+	}
 
-        // Initialize components
-        $this->initializeComponents();
+	/**
+	 * Initialize the updater components
+	 *
+	 * Called automatically on plugins_loaded hook
+	 */
+	public function init() {
+		// Only initialize once
+		if ( $this->initialized ) {
+			return;
+		}
 
-        $this->initialized = true;
+		// Only load in admin area
+		if ( ! is_admin() ) {
+			return;
+		}
 
-        // Allow others to hook after initialization
-        do_action('github_updater_initialized', $this);
-    }
+		// Load dependencies
+		$this->loadDependencies();
 
-    /**
-     * Load required files
-     */
-    private function loadDependencies()
-    {
-        // Get the updater-manager directory (where this class file is located)
-        $updater_dir = plugin_dir_path(dirname(__FILE__));
+		// Initialize components
+		$this->initializeComponents();
 
-        require_once $updater_dir . 'includes/class-github-api.php';
-        require_once $updater_dir . 'includes/class-updater.php';
-        require_once $updater_dir . 'admin/class-admin.php';
-    }
+		$this->initialized = true;
 
-    /**
-     * Initialize all components
-     */
-    private function initializeComponents()
-    {
-        // Initialize GitHub API
-        $this->github_api = new GitHubAPI($this->config);
+		// Allow others to hook after initialization
+		do_action( 'github_updater_initialized', $this );
+	}
 
-        // Initialize Updater
-        $this->updater = new Updater($this->config, $this->github_api);
+	/**
+	 * Load required files
+	 */
+	private function loadDependencies() {
+		// Get the updater-manager directory (where this class file is located)
+		$updater_dir = plugin_dir_path( __DIR__ );
 
-        // Initialize Admin interface
-        $this->admin = new Admin($this->config, $this->github_api, $this->updater);
-    }
+		require_once $updater_dir . 'includes/class-github-api.php';
+		require_once $updater_dir . 'includes/class-updater.php';
+		require_once $updater_dir . 'admin/class-admin.php';
+	}
 
-    /**
-     * Activation callback
-     *
-     * Call this from register_activation_hook in your main plugin file
-     */
-    public function activate()
-    {
-        // Create default options
-        $default_options = $this->config->getDefaultOptions();
+	/**
+	 * Initialize all components
+	 */
+	private function initializeComponents() {
+		// Initialize GitHub API
+		$this->github_api = new GitHubAPI( $this->config );
 
-        foreach ($default_options as $key => $value) {
-            if ($this->config->getOption($key) === false) {
-                $this->config->addOption($key, $value);
-            }
-        }
+		// Initialize Updater
+		$this->updater = new Updater( $this->config, $this->github_api );
 
-        // Flush rewrite rules if needed
-        flush_rewrite_rules();
+		// Initialize Admin interface
+		$this->admin = new Admin( $this->config, $this->github_api, $this->updater );
+	}
 
-        // Allow others to hook after activation
-        do_action('github_updater_activated', $this);
-    }
+	/**
+	 * Activation callback
+	 *
+	 * Call this from register_activation_hook in your main plugin file
+	 */
+	public function activate() {
+		// Create default options
+		$default_options = $this->config->getDefaultOptions();
 
-    /**
-     * Deactivation callback
-     *
-     * Call this from register_deactivation_hook in your main plugin file
-     */
-    public function deactivate()
-    {
-        // Clean up temporary files if any
-        $upload_dir = wp_upload_dir();
-        $temp_files = glob($upload_dir['basedir'] . '/wp-github-updater-temp-*');
+		foreach ( $default_options as $key => $value ) {
+			if ( $this->config->getOption( $key ) === false ) {
+				$this->config->addOption( $key, $value );
+			}
+		}
 
-        if ($temp_files) {
-            foreach ($temp_files as $file) {
-                if (is_file($file)) {
-                    @unlink($file);
-                }
-            }
-        }
+		// Flush rewrite rules if needed
+		flush_rewrite_rules();
 
-        // Allow others to hook after deactivation
-        do_action('github_updater_deactivated', $this);
-    }
+		// Allow others to hook after activation
+		do_action( 'github_updater_activated', $this );
+	}
+
+	/**
+	 * Deactivation callback
+	 *
+	 * Call this from register_deactivation_hook in your main plugin file
+	 */
+	public function deactivate() {
+		// Clean up temporary files if any
+		$upload_dir = wp_upload_dir();
+		$temp_files = glob( $upload_dir['basedir'] . '/wp-github-updater-temp-*' );
+
+		if ( $temp_files ) {
+			foreach ( $temp_files as $file ) {
+				if ( is_file( $file ) ) {
+					@unlink( $file );
+				}
+			}
+		}
+
+		// Allow others to hook after deactivation
+		do_action( 'github_updater_deactivated', $this );
+	}
 }
