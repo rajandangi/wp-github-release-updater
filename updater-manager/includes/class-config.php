@@ -24,56 +24,184 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Config {
 
 	/**
-	 * Plugin information (auto-extracted from plugin file)
+	 * Plugin slug.
+	 *
+	 * @var string
 	 */
 	private $plugin_slug;
+
+	/**
+	 * Plugin name.
+	 *
+	 * @var string
+	 */
 	private $plugin_name;
+
+	/**
+	 * Plugin version.
+	 *
+	 * @var string
+	 */
 	private $plugin_version;
+
+	/**
+	 * Plugin file path.
+	 *
+	 * @var string
+	 */
 	private $plugin_file;
+
+	/**
+	 * Plugin directory path.
+	 *
+	 * @var string
+	 */
 	private $plugin_dir;
+
+	/**
+	 * Plugin URL.
+	 *
+	 * @var string
+	 */
 	private $plugin_url;
+
+	/**
+	 * Plugin basename.
+	 *
+	 * @var string
+	 */
 	private $plugin_basename;
+
+	/**
+	 * Text domain for translations.
+	 *
+	 * @var string
+	 */
 	private $text_domain;
 
 	/**
-	 * Updater manager paths (for loading updater assets/views)
+	 * Updater directory path.
+	 *
+	 * @var string
 	 */
 	private $updater_dir;
+
+	/**
+	 * Updater URL.
+	 *
+	 * @var string
+	 */
 	private $updater_url;
 
 	/**
-	 * Utility configuration (customizable prefixes)
+	 * Option prefix for database options.
+	 *
+	 * @var string
 	 */
 	private $option_prefix;
+
+	/**
+	 * AJAX prefix for AJAX actions.
+	 *
+	 * @var string
+	 */
 	private $ajax_prefix;
+
+	/**
+	 * Asset prefix for script/style handles.
+	 *
+	 * @var string
+	 */
 	private $asset_prefix;
+
+	/**
+	 * Nonce name for security verification.
+	 *
+	 * @var string
+	 */
 	private $nonce_name;
 
 	/**
-	 * Admin settings (customizable)
+	 * Parent menu slug for admin page.
+	 *
+	 * @var string
 	 */
 	private $menu_parent;
+
+	/**
+	 * Menu title for admin page.
+	 *
+	 * @var string
+	 */
 	private $menu_title;
+
+	/**
+	 * Page title for admin page.
+	 *
+	 * @var string
+	 */
 	private $page_title;
+
+	/**
+	 * Capability required to access settings.
+	 *
+	 * @var string
+	 */
 	private $capability;
+
+	/**
+	 * Settings page slug.
+	 *
+	 * @var string
+	 */
 	private $settings_page_slug;
+
+	/**
+	 * Settings group name.
+	 *
+	 * @var string
+	 */
 	private $settings_group;
 
 	/**
-	 * AJAX action names (auto-generated from ajax_prefix)
+	 * AJAX action name for checking updates.
+	 *
+	 * @var string
 	 */
 	private $ajax_check_action;
+
+	/**
+	 * AJAX action name for performing updates.
+	 *
+	 * @var string
+	 */
 	private $ajax_update_action;
+
+	/**
+	 * AJAX action name for testing repository connection.
+	 *
+	 * @var string
+	 */
 	private $ajax_test_repo_action;
 
 	/**
-	 * Asset handles (auto-generated from asset_prefix)
+	 * Script handle for enqueuing JavaScript.
+	 *
+	 * @var string
 	 */
 	private $script_handle;
+
+	/**
+	 * Style handle for enqueuing CSS.
+	 *
+	 * @var string
+	 */
 	private $style_handle;
 
 	/**
 	 * Single instance
+	 *
+	 * @var Config|null
 	 */
 	private static $instance = null;
 
@@ -84,7 +212,7 @@ class Config {
 	 * @param array  $config Configuration options
 	 */
 	public static function getInstance( $plugin_file = null, $config = array() ) {
-		if ( self::$instance === null ) {
+		if ( null === self::$instance ) {
 			self::$instance = new self( $plugin_file, $config );
 		}
 		return self::$instance;
@@ -230,6 +358,7 @@ class Config {
 			'TextDomain' => 'Text Domain',
 		);
 
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local plugin file headers, not remote URL
 		$file_data   = file_get_contents( $plugin_file, false, null, 0, 8192 );
 		$plugin_data = array();
 
@@ -447,11 +576,11 @@ class Config {
 	 * Get option value
 	 *
 	 * @param string $option_name Option name without prefix
-	 * @param mixed  $default Default value
+	 * @param mixed  $default_value Default value
 	 * @return mixed Option value
 	 */
-	public function getOption( $option_name, $default = false ) {
-		return get_option( $this->getOptionName( $option_name ), $default );
+	public function getOption( $option_name, $default_value = false ) {
+		return get_option( $this->getOptionName( $option_name ), $default_value );
 	}
 
 	/**

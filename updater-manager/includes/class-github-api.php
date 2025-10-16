@@ -24,21 +24,29 @@ class GitHubAPI {
 
 	/**
 	 * Config instance
+	 *
+	 * @var Config|null
 	 */
 	private $config;
 
 	/**
 	 * Repository owner
+	 *
+	 * @var string|null
 	 */
 	private $owner;
 
 	/**
 	 * Repository name
+	 *
+	 * @var string|null
 	 */
 	private $repo;
 
 	/**
 	 * Access token for private repositories
+	 *
+	 * @var string|null
 	 */
 	private $access_token;
 

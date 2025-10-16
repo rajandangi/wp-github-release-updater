@@ -250,7 +250,7 @@ class Updater {
 			return $args;
 		}
 
-		$host = parse_url( $url, PHP_URL_HOST );
+		$host = wp_parse_url( $url, PHP_URL_HOST );
 		if ( ! $host ) {
 			return $args;
 		}
@@ -336,7 +336,7 @@ class Updater {
 
 			$asset_name = strtolower( $asset['name'] );
 
-			if ( $asset_name === strtolower( $expected_filename ) ) {
+			if ( strtolower( $expected_filename ) === $asset_name ) {
 				return apply_filters(
 					$this->config->getPluginSlug() . '_download_url',
 					$asset['browser_download_url'],
@@ -357,8 +357,8 @@ class Updater {
 	 * @return bool
 	 */
 	private function isZipFile( $asset ) {
-		return $asset['content_type'] === 'application/zip' ||
-				pathinfo( $asset['name'], PATHINFO_EXTENSION ) === 'zip';
+		return 'application/zip' === $asset['content_type'] ||
+				'zip' === pathinfo( $asset['name'], PATHINFO_EXTENSION );
 	}
 
 	/**

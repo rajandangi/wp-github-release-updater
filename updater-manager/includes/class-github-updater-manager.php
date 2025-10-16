@@ -202,7 +202,7 @@ class GitHubUpdaterManager {
 		if ( $temp_files ) {
 			foreach ( $temp_files as $file ) {
 				if ( is_file( $file ) ) {
-					@unlink( $file );
+					wp_delete_file( $file );
 				}
 			}
 		}
