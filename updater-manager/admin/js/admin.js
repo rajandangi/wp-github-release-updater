@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const checkButton = document.getElementById('check-for-updates');
     const updateButton = document.getElementById('update-now');
     const testButton = document.getElementById('test-repository');
+    const clearCacheButton = document.getElementById('clear-cache');
     const messagesContainer = document.getElementById('wp-github-updater-messages');
 
     /**
@@ -176,6 +177,24 @@ document.addEventListener('DOMContentLoaded', function () {
             })
                 .then(result => {
                     setButtonLoading(testButton, false);
+
+                    if (result.success) {
+                        showMessage(result.message, 'success');
+                    } else {
+                        showMessage(result.message, 'error');
+                    }
+                });
+        });
+    }
+
+    // Clear cache button handler
+    if (clearCacheButton) {
+        clearCacheButton.addEventListener('click', function () {
+            setButtonLoading(clearCacheButton, true);
+
+            makeAjaxRequest(wpGitHubUpdater.actions.clearCache)
+                .then(result => {
+                    setButtonLoading(clearCacheButton, false);
 
                     if (result.success) {
                         showMessage(result.message, 'success');

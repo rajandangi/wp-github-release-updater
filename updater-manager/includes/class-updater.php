@@ -239,13 +239,8 @@ class Updater {
 				return $result;
 			}
 
-			// Store rollback information before updating
-			$this->storeRollbackInfo();
-
 			// Register this as an available update in the core update transient
-			$this->registerCoreUpdate( $latest_version, $package_url );
-
-			// Build the WordPress native update URL with fresh nonce
+			$this->registerCoreUpdate( $latest_version, $package_url );         // Build the WordPress native update URL with fresh nonce
 			$plugin_basename = $this->config->getPluginBasename();
 			$update_url      = add_query_arg(
 				array(
@@ -599,54 +594,11 @@ class Updater {
 
 			// Clear the update cache after successful update
 			$this->clearUpdateCache();
+
+			// Clear GitHub API cache after successful update
+			$this->github_api->clearCache();
+
 			$this->logAction( 'Update', 'Success', 'Plugin updated successfully. Cache cleared.' );
 		}
-	}
-
-	/**
-	 * Store rollback information before performing update
-	 *
-	 * @return void
-	 */
-	private function storeRollbackInfo() {
-		$rollback_info = array(
-			'version'    => $this->current_version,
-			'stored_at'  => time(),
-			'plugin_dir' => $this->plugin_dir,
-		);
-
-		$this->config->updateOption( 'rollback_info', $rollback_info );
-	}
-
-	/**
-	 * Get rollback information
-	 *
-	 * @return array|null Rollback info or null if not available
-	 */
-	public function getRollbackInfo() {
-		$rollback_info = $this->config->getOption( 'rollback_info', array() );
-
-		if ( empty( $rollback_info ) || empty( $rollback_info['version'] ) ) {
-			return null;
-		}
-
-		// Check if rollback is still valid (within 7 days)
-		$stored_at = $rollback_info['stored_at'] ?? 0;
-		if ( ( time() - $stored_at ) > ( 7 * DAY_IN_SECONDS ) ) {
-			// Rollback info expired
-			$this->config->updateOption( 'rollback_info', array() );
-			return null;
-		}
-
-		return $rollback_info;
-	}
-
-	/**
-	 * Clear rollback information
-	 *
-	 * @return void
-	 */
-	public function clearRollbackInfo() {
-		$this->config->updateOption( 'rollback_info', array() );
 	}
 }

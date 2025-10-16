@@ -185,6 +185,13 @@ class Config {
 	private $ajax_test_repo_action;
 
 	/**
+	 * AJAX action name for clearing cache.
+	 *
+	 * @var string
+	 */
+	private $ajax_clear_cache_action;
+
+	/**
 	 * Script handle for enqueuing JavaScript.
 	 *
 	 * @var string
@@ -312,9 +319,10 @@ class Config {
 		$this->nonce_name    = $nonce_name;
 
 		// AJAX action names
-		$this->ajax_check_action     = $ajax_prefix . 'check';
-		$this->ajax_update_action    = $ajax_prefix . 'update';
-		$this->ajax_test_repo_action = $ajax_prefix . 'test_repo';
+		$this->ajax_check_action       = $ajax_prefix . 'check';
+		$this->ajax_update_action      = $ajax_prefix . 'update';
+		$this->ajax_test_repo_action   = $ajax_prefix . 'test_repo';
+		$this->ajax_clear_cache_action = $ajax_prefix . 'clear_cache';
 
 		// Asset handles
 		$this->script_handle = $asset_prefix . 'admin';
@@ -553,6 +561,13 @@ class Config {
 	}
 
 	/**
+	 * Get AJAX clear cache action
+	 */
+	public function getAjaxClearCacheAction() {
+		return $this->ajax_clear_cache_action;
+	}
+
+	/**
 	 * Get nonce name
 	 */
 	public function getNonceName() {
@@ -756,5 +771,25 @@ class Config {
 		}
 
 		return $this->decrypt( $encrypted_token );
+	}
+
+	/**
+	 * Get cache key prefix for GitHub API caching
+	 *
+	 * @return string Cache key prefix
+	 */
+	public function getCachePrefix() {
+		return $this->option_prefix . 'github_cache_';
+	}
+
+	/**
+	 * Get cache duration in seconds
+	 * Default: 60 seconds (1 minute)
+	 *
+	 * @return int Cache duration in seconds
+	 */
+	public function getCacheDuration() {
+		// Fixed 1-minute cache as per requirements
+		return 60;
 	}
 }

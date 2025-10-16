@@ -63,6 +63,7 @@ class Admin {
 		add_action( 'wp_ajax_' . $this->config->getAjaxCheckAction(), array( $this, 'ajaxCheckForUpdates' ) );
 		add_action( 'wp_ajax_' . $this->config->getAjaxUpdateAction(), array( $this, 'ajaxPerformUpdate' ) );
 		add_action( 'wp_ajax_' . $this->config->getAjaxTestRepoAction(), array( $this, 'ajaxTestRepository' ) );
+		add_action( 'wp_ajax_' . $this->config->getAjaxClearCacheAction(), array( $this, 'ajaxClearCache' ) );
 		add_action( 'admin_notices', array( $this, 'showAdminNotices' ) );
 	}
 
@@ -88,7 +89,7 @@ class Admin {
 			$this->config->getOptionName( 'repository_url' ),
 			array(
 				'type'              => 'string',
-				'sanitize_callback' => 'sanitize_text_field',
+				'sanitize_callback' => array( $this, 'sanitizeRepositoryUrl' ),
 				'default'           => '',
 			)
 		);
@@ -167,9 +168,10 @@ class Admin {
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 				'nonce'   => wp_create_nonce( $this->config->getNonceName() ),
 				'actions' => array(
-					'check'    => $this->config->getAjaxCheckAction(),
-					'update'   => $this->config->getAjaxUpdateAction(),
-					'testRepo' => $this->config->getAjaxTestRepoAction(),
+					'check'      => $this->config->getAjaxCheckAction(),
+					'update'     => $this->config->getAjaxUpdateAction(),
+					'testRepo'   => $this->config->getAjaxTestRepoAction(),
+					'clearCache' => $this->config->getAjaxClearCacheAction(),
 				),
 				'strings' => array(
 					'checking'       => 'Checking for updates...',
@@ -225,6 +227,24 @@ class Admin {
 	}
 
 	/**
+	 * Sanitize repository URL
+	 *
+	 * @param string $url Repository URL
+	 * @return string Sanitized URL
+	 */
+	public function sanitizeRepositoryUrl( $url ) {
+		$sanitized_url = sanitize_text_field( $url );
+
+		// Clear cache when repository URL changes
+		$old_url = $this->config->getOption( 'repository_url', '' );
+		if ( $old_url !== $sanitized_url ) {
+			$this->github_api->clearCache();
+		}
+
+		return $sanitized_url;
+	}
+
+	/**
 	 * Sanitize access token
 	 *
 	 * @param string $token Access token
@@ -254,7 +274,8 @@ class Admin {
 	 */
 	public function ajaxCheckForUpdates() {
 		// Verify nonce and permissions
-		if ( ! wp_verify_nonce( $_POST['nonce'], $this->config->getNonceName() ) || ! current_user_can( $this->config->getCapability() ) ) {
+		$nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, $this->config->getNonceName() ) || ! current_user_can( $this->config->getCapability() ) ) {
 			wp_die( 'Security check failed' );
 		}
 
@@ -271,7 +292,8 @@ class Admin {
 	 */
 	public function ajaxPerformUpdate() {
 		// Verify nonce and permissions
-		if ( ! wp_verify_nonce( $_POST['nonce'], $this->config->getNonceName() ) || ! current_user_can( $this->config->getCapability() ) ) {
+		$nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, $this->config->getNonceName() ) || ! current_user_can( $this->config->getCapability() ) ) {
 			wp_die( 'Security check failed' );
 		}
 
@@ -285,13 +307,14 @@ class Admin {
 	 */
 	public function ajaxTestRepository() {
 		// Verify nonce and permissions
-		if ( ! wp_verify_nonce( $_POST['nonce'], $this->config->getNonceName() ) || ! current_user_can( $this->config->getCapability() ) ) {
+		$nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, $this->config->getNonceName() ) || ! current_user_can( $this->config->getCapability() ) ) {
 			wp_die( 'Security check failed' );
 		}
 
 		// Get posted settings
-		$repository_url = sanitize_text_field( $_POST['repository_url'] ?? '' );
-		$access_token   = sanitize_text_field( $_POST['access_token'] ?? '' );
+		$repository_url = isset( $_POST['repository_url'] ) ? sanitize_text_field( wp_unslash( $_POST['repository_url'] ) ) : '';
+		$access_token   = isset( $_POST['access_token'] ) ? sanitize_text_field( wp_unslash( $_POST['access_token'] ) ) : '';
 
 		// If token is masked, get the existing one
 		if ( preg_match( '/^\*+$/', $access_token ) ) {
@@ -333,6 +356,27 @@ class Admin {
 				)
 			);
 		}
+	}
+
+	/**
+	 * AJAX handler for clearing GitHub API cache
+	 */
+	public function ajaxClearCache() {
+		// Verify nonce and permissions
+		$nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, $this->config->getNonceName() ) || ! current_user_can( $this->config->getCapability() ) ) {
+			wp_die( 'Security check failed' );
+		}
+
+		// Clear the GitHub API cache
+		$this->github_api->clearCache();
+
+		wp_send_json(
+			array(
+				'success' => true,
+				'message' => 'GitHub API cache cleared successfully!',
+			)
+		);
 	}
 
 	/**
