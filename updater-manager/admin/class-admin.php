@@ -316,9 +316,9 @@ class Admin {
 		$repository_url = isset( $_POST['repository_url'] ) ? sanitize_text_field( wp_unslash( $_POST['repository_url'] ) ) : '';
 		$access_token   = isset( $_POST['access_token'] ) ? sanitize_text_field( wp_unslash( $_POST['access_token'] ) ) : '';
 
-		// If token is masked, get the existing one
+		// If token is masked, get the existing decrypted one
 		if ( preg_match( '/^\*+$/', $access_token ) ) {
-			$access_token = $this->config->getOption( 'access_token', '' );
+			$access_token = $this->config->getAccessToken();
 		}
 
 		// Test with the provided settings
@@ -373,8 +373,9 @@ class Admin {
 
 		wp_send_json(
 			array(
-				'success' => true,
-				'message' => 'GitHub API cache cleared successfully!',
+				'success'        => true,
+				'message'        => 'GitHub API cache cleared successfully!',
+				'has_cache_data' => false,
 			)
 		);
 	}
@@ -423,6 +424,7 @@ class Admin {
 			'last_checked'          => $this->config->getOption( 'last_checked', 0 ),
 			'repository_configured' => ! empty( $this->config->getOption( 'repository_url', '' ) ),
 			'last_log'              => $this->updater->getLastLog(),
+			'has_cached_data'       => $this->github_api->hasCachedData(),
 		);
 	}
 

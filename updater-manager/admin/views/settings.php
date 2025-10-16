@@ -61,7 +61,7 @@ $status = $this->getPluginStatus();
 					<span class="spinner"></span>
 				</button>
 
-				<button type="button" id="clear-cache" class="button button-secondary">
+				<button type="button" id="clear-cache" class="button button-secondary" <?php echo ! $status['has_cached_data'] ? 'disabled' : ''; ?>>
 					<span class="button-text">Clear Cache</span>
 					<span class="spinner"></span>
 				</button>
@@ -72,7 +72,9 @@ $status = $this->getPluginStatus();
 
 			<!-- Cache Info -->
 			<div class="wp-github-updater-cache-info">
-				<p><small><em>GitHub API responses are cached for 1 minute to prevent rate limiting.</em></small></p>
+				<?php if ( $status['has_cached_data'] ) : ?>
+				<p id="cache-status-message"><small><em>GitHub API responses are cached for 1 minute to prevent rate limiting.</em></small></p>
+				<?php endif; ?>
 			</div>
 		</div>
 

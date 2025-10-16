@@ -281,6 +281,27 @@ class GitHubAPI {
 	}
 
 	/**
+	 * Check if any cache exists
+	 *
+	 * @return bool True if cache exists
+	 */
+	public function hasCachedData() {
+		global $wpdb;
+		$cache_prefix = $this->config->getCachePrefix();
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$count = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name LIKE %s",
+				$wpdb->esc_like( '_transient_' . $cache_prefix ) . '%'
+			)
+		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+		return $count > 0;
+	}
+
+	/**
 	 * Clear all GitHub API cache
 	 *
 	 * @param string $endpoint Optional specific endpoint to clear
