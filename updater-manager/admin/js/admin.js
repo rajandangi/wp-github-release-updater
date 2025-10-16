@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const checkButton = document.getElementById('check-for-updates');
     const updateButton = document.getElementById('update-now');
     const testButton = document.getElementById('test-repository');
+    const clearCacheButton = document.getElementById('clear-cache');
     const messagesContainer = document.getElementById('wp-github-updater-messages');
 
     /**
@@ -106,6 +107,18 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (lastCheckedCell) {
                             lastCheckedCell.textContent = 'Just now';
                         }
+
+                        // Show cache message since we just cached data
+                        const cacheStatusMessage = document.getElementById('cache-status-message');
+                        if (cacheStatusMessage) {
+                            cacheStatusMessage.innerHTML = '<small><em>GitHub API responses are cached for 1 minute to prevent rate limiting.</em></small>';
+                            cacheStatusMessage.style.display = 'block';
+                        }
+
+                        // Enable clear cache button since we just created cache
+                        if (clearCacheButton) {
+                            clearCacheButton.disabled = false;
+                        }
                     } else {
                         showMessage(result.message, 'error');
                     }
@@ -179,6 +192,39 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     if (result.success) {
                         showMessage(result.message, 'success');
+                    } else {
+                        showMessage(result.message, 'error');
+                    }
+                });
+        });
+    }
+
+    // Clear cache button handler
+    if (clearCacheButton) {
+        clearCacheButton.addEventListener('click', function () {
+            setButtonLoading(clearCacheButton, true);
+
+            makeAjaxRequest(wpGitHubUpdater.actions.clearCache)
+                .then(result => {
+                    setButtonLoading(clearCacheButton, false);
+
+                    if (result.success) {
+                        showMessage(result.message, 'success');
+
+                        // Update cache status message
+                        const cacheStatusMessage = document.getElementById('cache-status-message');
+                        if (cacheStatusMessage) {
+                            // Show success message temporarily
+                            cacheStatusMessage.innerHTML = '<small><em style="color: #46b450; font-weight: 600;">✓ Cache cleared! Fresh data will be fetched on next check.</em></small>';
+
+                            // After 3 seconds, hide the message completely since there's no cache
+                            setTimeout(() => {
+                                cacheStatusMessage.style.display = 'none';
+                            }, 3000);
+                        }
+
+                        // Disable the clear cache button since there's no cache now
+                        clearCacheButton.disabled = true;
                     } else {
                         showMessage(result.message, 'error');
                     }

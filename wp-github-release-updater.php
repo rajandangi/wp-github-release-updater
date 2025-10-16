@@ -11,11 +11,13 @@
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: wp-github-release-updater
  * Network: false
+ *
+ * @package WPGitHubReleaseUpdater
  */
 
 // Prevent direct access
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 // Load the GitHub Updater Manager class.
@@ -27,37 +29,44 @@ require_once __DIR__ . '/updater-manager/class-github-updater-manager.php';
  * Plugin info extracted automatically from file headers!
  * Only need to provide unique prefix and menu titles.
  */
-function wpGitHubReleaseUpdater()
-{
-    static $updater = null;
+function wpGitHubReleaseUpdater() {
+	static $updater = null;
 
-    if ($updater === null) {
-        // ULTRA-SIMPLE: Plugin info auto-extracted, just provide unique prefix!
-        $updater = new \WPGitHubReleaseUpdater\GitHubUpdaterManager([
-            // Required
-            'plugin_file' => __FILE__,
-            'prefix' => 'wp_github_release_updater',  // Used for DB, AJAX, assets, nonces
-            'menu_title' => 'GitHub Updater',
-            'page_title' => 'GitHub Release Updater',
+	if ( null === $updater ) {
+		// ULTRA-SIMPLE: Plugin info auto-extracted, just provide unique prefix!
+		$updater = new \WPGitHubReleaseUpdater\GitHubUpdaterManager(
+			array(
+				// Required
+				'plugin_file' => __FILE__,
+				'prefix'      => 'wp_github_release_updater',  // Used for DB, AJAX, assets, nonces
+				'menu_title'  => 'GitHub Updater',
+				'page_title'  => 'GitHub Release Updater',
 
-            // Optional
-            // 'menu_parent' => 'tools.php',  // Default: 'tools.php'
-            // 'capability' => 'manage_options',  // Default: 'manage_options'
-        ]);
-    }
+			// Optional
+			// 'menu_parent' => 'tools.php',  // Default: 'tools.php'
+			// 'capability' => 'manage_options',  // Default: 'manage_options'
+			)
+		);
+	}
 
-    return $updater;
+	return $updater;
 }
 
 // Register activation hook
-register_activation_hook(__FILE__, function() {
-    wpGitHubReleaseUpdater()->activate();
-});
+register_activation_hook(
+	__FILE__,
+	function () {
+		wpGitHubReleaseUpdater()->activate();
+	}
+);
 
 // Register deactivation hook
-register_deactivation_hook(__FILE__, function() {
-    wpGitHubReleaseUpdater()->deactivate();
-});
+register_deactivation_hook(
+	__FILE__,
+	function () {
+		wpGitHubReleaseUpdater()->deactivate();
+	}
+);
 
 // Initialize the updater
 wpGitHubReleaseUpdater();
