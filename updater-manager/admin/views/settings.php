@@ -49,6 +49,11 @@ $status = $this->getPluginStatus();
 				</tr>
 			</table>
 
+			<!-- Warning Notice -->
+			<div class="notice notice-warning inline" style="margin: 15px 0;">
+				<p><strong>⚠️ Important:</strong> Make sure to check for updates before clicking "Update Now". The information shown above is cached to minimize unnecessary API calls.</p>
+			</div>
+
 			<!-- Action Buttons -->
 			<div class="wp-github-updater-actions">
 				<button type="button" id="check-for-updates" class="button button-secondary" <?php echo ! $status['repository_configured'] ? 'disabled' : ''; ?>>
