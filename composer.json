@@ -1,0 +1,16 @@
+{
+    "name": "wp-github-release-updater",
+    "description": "A WordPress plugin that enables automatic updates for plugins hosted on GitHub releases.",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Rajan Dangi",
+            "email": "contact@rajandangi.com.np",
+            "homepage": "https://github.com/rajandangi"
+        }
+    ],
+    "require": {
+        "rajandangi/wp-gh-release-updater": "^1.0"
+    }
+}

@@ -21,7 +21,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Load the GitHub Updater Manager class.
-require_once __DIR__ . '/updater-manager/class-github-updater-manager.php';
+require_once __DIR__ . '/vendor/autoload.php';
+use WPGitHubReleaseUpdater\GitHubUpdaterManager;
 
 /**
  * Initialize the GitHub Updater
@@ -33,18 +34,11 @@ function wpGitHubReleaseUpdater() {
 	static $updater = null;
 
 	if ( null === $updater ) {
-		// ULTRA-SIMPLE: Plugin info auto-extracted, just provide unique prefix!
-		$updater = new \WPGitHubReleaseUpdater\GitHubUpdaterManager(
+		$updater = new GitHubUpdaterManager(
 			array(
-				// Required
 				'plugin_file' => __FILE__,
-				'prefix'      => 'wp_github_release_updater',  // Used for DB, AJAX, assets, nonces
-				'menu_title'  => 'GitHub Updater',
+				'menu_title'  => 'GitHub Release Updater',
 				'page_title'  => 'GitHub Release Updater',
-
-			// Optional
-			// 'menu_parent' => 'tools.php',  // Default: 'tools.php'
-			// 'capability' => 'manage_options',  // Default: 'manage_options'
 			)
 		);
 	}
