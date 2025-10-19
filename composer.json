@@ -1,5 +1,5 @@
 {
-    "name": "wp-github-release-updater",
+    "name": "rajandangi/wp-github-release-updater",
     "description": "A WordPress plugin that enables automatic updates for plugins hosted on GitHub releases.",
     "type": "wordpress-plugin",
     "license": "GPL-2.0-or-later",
