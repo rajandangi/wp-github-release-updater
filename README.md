@@ -143,7 +143,7 @@ The updater:
     * Plugin slug extracted from filename!
     * Only need to provide menu titles - that's it!
     */
-    function wpGitHubReleaseUpdater()
+    function yourPluginSlug_wpGitHubReleaseUpdater()
     {
         static $updater = null;
 
@@ -166,7 +166,7 @@ The updater:
 
     // Register activation hook
     register_activation_hook(__FILE__, function() {
-        wpGitHubReleaseUpdater()->activate();
+        yourPluginSlug_wpGitHubReleaseUpdater()->activate();
     });
 
     // Register deactivation hook
@@ -176,7 +176,7 @@ The updater:
 
 
     // Initialize the updater
-    wpGitHubReleaseUpdater();
+    yourPluginSlug_wpGitHubReleaseUpdater();
    ```
 
 **Done! 🎉** The admin page appears under Tools.

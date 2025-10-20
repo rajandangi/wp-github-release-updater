@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "ba57bc6a6881100c51322ba6e8319c4f",
+    "content-hash": "245c7805dcab27570319d5f6c7377fb8",
     "packages": [
         {
             "name": "rajandangi/wp-gh-release-updater",
-            "version": "v1.0.3",
+            "version": "v1.0.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/rajandangi/wp-gh-release-updater.git",
-                "reference": "fd5cf874195afad12dac5ab2176a47005ca6e010"
+                "reference": "68d56d7e5da3996058efd5d427414a2645843cb8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/rajandangi/wp-gh-release-updater/zipball/fd5cf874195afad12dac5ab2176a47005ca6e010",
-                "reference": "fd5cf874195afad12dac5ab2176a47005ca6e010",
+                "url": "https://api.github.com/repos/rajandangi/wp-gh-release-updater/zipball/68d56d7e5da3996058efd5d427414a2645843cb8",
+                "reference": "68d56d7e5da3996058efd5d427414a2645843cb8",
                 "shasum": ""
             },
             "require": {
@@ -65,7 +65,7 @@
                 "issues": "https://github.com/rajandangi/wp-gh-release-updater/issues",
                 "source": "https://github.com/rajandangi/wp-gh-release-updater"
             },
-            "time": "2025-10-19T05:00:22+00:00"
+            "time": "2025-10-19T05:43:31+00:00"
         }
     ],
     "packages-dev": [],
