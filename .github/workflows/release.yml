@@ -3,24 +3,19 @@ name: Build and Release Plugin
 on:
     push:
         branches:
-            - release
+            - release # Trigger on push to release branch
 
 permissions:
     contents: write
 
 jobs:
     build-release:
-        name: Zip and Create Release
+        name: Build and Create Release
         runs-on: ubuntu-latest
 
         steps:
             - name: Checkout repository
               uses: actions/checkout@v4
-
-            - name: Set up Node
-              uses: actions/setup-node@v4
-              with:
-                  node-version: "20"
 
             - name: Set up PHP
               uses: shivammathur/setup-php@v2
@@ -28,77 +23,63 @@ jobs:
                   php-version: "8.3"
                   tools: composer:v2
 
-            - name: Composer install (if present)
-              if: hashFiles('**/composer.json') != ''
-              run: composer install --no-dev --prefer-dist --no-interaction --no-progress
+            - name: Install production dependencies
+              run: composer install --no-dev --prefer-dist --optimize-autoloader
 
-            - name: Determine version and names
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "lts/*"
+                  cache: "npm"
+
+            - name: Install npm dependencies
+              run: npm install
+
+            - name: Build assets
+              run: npm run build
+
+            - name: Determine version and plugin slug
               id: vars
-              shell: bash
               run: |
-                  set -euo pipefail
+                  # Update these variables for your plugin
+                  FILE_FOR_VERSION="wp-github-release-updater.php"  # Your main plugin file
+                  SLUG="wp-github-release-updater"                  # Your plugin slug
 
-                  FILE_FOR_VERSION="wp-github-release-updater.php" # Update this if the main plugin file is different
-                  SLUG="wp-github-release-updater" # Update this to your plugin slug
+                  # Extract version from plugin header
+                  VERSION=$(grep -iE '^\s*\*?\s*Version:' "$FILE_FOR_VERSION" | head -n1 | sed -E 's/^.*Version:\s*//I' | tr -d '\r' | sed 's/\s*$//')
 
-                  echo "file_for_version=${FILE_FOR_VERSION}" >> "$GITHUB_OUTPUT"
-                  echo "slug=${SLUG}" >> "$GITHUB_OUTPUT"
-
-                  if [[ -f "$FILE_FOR_VERSION" ]]; then
-                    VERSION="$(grep -iE '^[[:space:]]*\*?[[:space:]]*Version:' "$FILE_FOR_VERSION" | head -n1 | sed -E 's/^.*Version:[[:space:]]*//I' | tr -d '\r' | sed 's/[[:space:]]*$//')"
-                  else
-                    VERSION=""
-                  fi
-
-                  if [[ -z "${VERSION:-}" ]]; then
-                    echo "Error: Could not determine plugin version from $FILE_FOR_VERSION" >&2
+                  if [[ -z "$VERSION" ]]; then
+                    echo "Error: Could not determine plugin version"
                     exit 1
                   fi
 
                   echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+                  echo "slug=${SLUG}" >> "$GITHUB_OUTPUT"
+                  echo "zip=${SLUG}.zip" >> "$GITHUB_OUTPUT"
 
-                  ZIP_NAME="${SLUG}.zip"
-                  echo "zip=${ZIP_NAME}" >> "$GITHUB_OUTPUT"
-
-            - name: Install Node deps and build
+            - name: Create plugin package
               run: |
-                  if [ -f package-lock.json ]; then
-                    npm ci
-                  elif [ -f package.json ]; then
-                    npm install
-                  fi
-                  if [ -f package.json ]; then
-                    npm run build --if-present
-                  fi
+                  mkdir -p "${{ steps.vars.outputs.slug }}"
 
-            - name: Prepare artifact (exclude dev and VCS files)
-              run: |
-                  set -euo pipefail
-                  rm -rf release-package
-                  mkdir -p "release-package/${{ steps.vars.outputs.slug }}"
+                  # Copy files, excluding dev dependencies
                   rsync -a --delete \
                     --exclude '.git' \
                     --exclude '.github' \
                     --exclude 'node_modules' \
-                    --exclude '.DS_Store' \
-                    --exclude '*.log' \
-                    --exclude 'release-package' \
+                    --exclude 'tests' \
                     --exclude '.gitignore' \
-                    --exclude '.gitattributes' \
                     --exclude 'composer.json' \
                     --exclude 'composer.lock' \
+                    --exclude 'phpcs.xml' \
+                    --exclude 'phpstan.neon' \
+                    --exclude 'rector.php' \
+                    --exclude 'biome.json' \
                     --exclude 'package.json' \
                     --exclude 'package-lock.json' \
-                    --exclude 'pnpm-lock.yaml' \
-                    --exclude 'vite.config.*' \
-                    --exclude 'webpack.*' \
-                    ./ "release-package/${{ steps.vars.outputs.slug }}/"
+                    ./ "${{ steps.vars.outputs.slug }}/"
 
-            - name: Create zip
-              working-directory: release-package/${{ steps.vars.outputs.slug }}
-              run: |
-                  set -euo pipefail
-                  zip -r "../${{ steps.vars.outputs.zip }}" .
+            - name: Create ZIP file
+              run: zip -r "${{ steps.vars.outputs.zip }}" "${{ steps.vars.outputs.slug }}"
 
             - name: Create and push tag
               run: |
@@ -107,14 +88,13 @@ jobs:
                   git tag -a "v${{ steps.vars.outputs.version }}" -m "Release v${{ steps.vars.outputs.version }}"
                   git push origin "v${{ steps.vars.outputs.version }}"
 
-            - name: Create or update release
+            - name: Create GitHub Release
               uses: softprops/action-gh-release@v2
               with:
                   tag_name: v${{ steps.vars.outputs.version }}
                   name: v${{ steps.vars.outputs.version }}
-                  body: "Automated release for version ${{ steps.vars.outputs.version }}"
-                  files: release-package/${{ steps.vars.outputs.zip }}
-                  fail_on_unmatched_files: true
+                  body: "Release version ${{ steps.vars.outputs.version }}"
+                  files: ${{ steps.vars.outputs.zip }}
                   generate_release_notes: true
                   draft: false
                   prerelease: false
