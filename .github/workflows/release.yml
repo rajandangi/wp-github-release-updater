@@ -71,7 +71,7 @@ jobs:
 
             - name: Create plugin package
               run: |
-                  mkdir -p "${{ steps.vars.outputs.slug }}"
+                  mkdir -p "release-package/${{ steps.vars.outputs.slug }}"
 
                   # Copy files, excluding dev dependencies
                   rsync -a --delete \
@@ -88,10 +88,13 @@ jobs:
                     --exclude 'biome.json' \
                     --exclude 'package.json' \
                     --exclude 'package-lock.json' \
-                    ./ "${{ steps.vars.outputs.slug }}/"
+                    --exclude 'webpack.config.js' \
+                    --exclude 'release-package' \
+                    ./ "release-package/${{ steps.vars.outputs.slug }}/"
 
             - name: Create ZIP file
-              run: zip -r "${{ steps.vars.outputs.zip }}" "${{ steps.vars.outputs.slug }}"
+              working-directory: release-package/${{ steps.vars.outputs.slug }}
+              run: zip -r "../${{ steps.vars.outputs.zip }}" .
 
             - name: Create and push tag
               run: |
@@ -106,7 +109,7 @@ jobs:
                   tag_name: v${{ steps.vars.outputs.version }}
                   name: v${{ steps.vars.outputs.version }}
                   body: "Release version ${{ steps.vars.outputs.version }}"
-                  files: ${{ steps.vars.outputs.zip }}
+                  files: release-package/${{ steps.vars.outputs.zip }}
                   generate_release_notes: true
                   draft: false
                   prerelease: false
