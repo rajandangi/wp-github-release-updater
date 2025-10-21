@@ -26,16 +26,28 @@ jobs:
             - name: Install production dependencies
               run: composer install --no-dev --prefer-dist --optimize-autoloader
 
+            - name: Check for npm project
+              id: check_npm
+              run: |
+                  if [ -f "package.json" ] && ([ -f "package-lock.json" ]); then
+                    echo "has_npm=true" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "has_npm=false" >> "$GITHUB_OUTPUT"
+                  fi
+
             - name: Setup Node.js
+              if: steps.check_npm.outputs.has_npm == 'true'
               uses: actions/setup-node@v4
               with:
                   node-version: "lts/*"
                   cache: "npm"
 
             - name: Install npm dependencies
+              if: steps.check_npm.outputs.has_npm == 'true'
               run: npm install
 
             - name: Build assets
+              if: steps.check_npm.outputs.has_npm == 'true'
               run: npm run build
 
             - name: Determine version and plugin slug
