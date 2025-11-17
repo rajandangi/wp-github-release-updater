@@ -8,16 +8,16 @@
     "packages": [
         {
             "name": "rajandangi/wp-gh-release-updater",
-            "version": "v1.0.4",
+            "version": "v1.3.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/rajandangi/wp-gh-release-updater.git",
-                "reference": "68d56d7e5da3996058efd5d427414a2645843cb8"
+                "reference": "14f99385932e87e0c376abec0f785b404f46d6aa"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/rajandangi/wp-gh-release-updater/zipball/68d56d7e5da3996058efd5d427414a2645843cb8",
-                "reference": "68d56d7e5da3996058efd5d427414a2645843cb8",
+                "url": "https://api.github.com/repos/rajandangi/wp-gh-release-updater/zipball/14f99385932e87e0c376abec0f785b404f46d6aa",
+                "reference": "14f99385932e87e0c376abec0f785b404f46d6aa",
                 "shasum": ""
             },
             "require": {
@@ -65,7 +65,7 @@
                 "issues": "https://github.com/rajandangi/wp-gh-release-updater/issues",
                 "source": "https://github.com/rajandangi/wp-gh-release-updater"
             },
-            "time": "2025-10-19T05:43:31+00:00"
+            "time": "2025-11-17T11:56:32+00:00"
         }
     ],
     "packages-dev": [],
